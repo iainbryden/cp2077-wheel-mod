@@ -12,14 +12,14 @@ jobs:
   tests:
     runs-on: windows-2022
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Only the RED4ext SDK is needed. vendor/mod_settings points at a
       # commit that isn't published, so a recursive checkout would fail.
       - name: Fetch RED4ext.SDK
         run: git submodule update --init --depth 1 vendor/RED4ext.SDK
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
