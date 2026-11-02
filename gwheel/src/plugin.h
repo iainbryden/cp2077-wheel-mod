@@ -7,10 +7,11 @@ namespace gwheel
 {
     inline constexpr const wchar_t* kPluginName = L"gwheel";
     inline constexpr const wchar_t* kPluginAuthor = L"Grant Perdue";
+    // NightDrive 2.5 rebuild (RED4ext semver can't carry the -nightdrive tag).
     inline constexpr int kVersionMajor = 2;
-    inline constexpr int kVersionMinor = 31;
-    inline constexpr int kVersionPatch = 2;
-    inline constexpr const char* kVersionString = "2.31.2";
+    inline constexpr int kVersionMinor = 5;
+    inline constexpr int kVersionPatch = 0;
+    inline constexpr const char* kVersionString = "2.5.0-nightdrive.2";
 
     struct PluginContext
     {
