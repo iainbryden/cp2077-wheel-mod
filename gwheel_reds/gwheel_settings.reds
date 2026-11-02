@@ -89,7 +89,7 @@ public class GWheelSettings extends IScriptable {
   @runtimeProperty("ModSettings.min", "50")
   @runtimeProperty("ModSettings.max", "400")
   @runtimeProperty("ModSettings.step", "10")
-  let steerGainPct: Int32 = 100;
+  let steerGainPct: Int32 = 300;
 
   @runtimeProperty("ModSettings.mod", "G-series Wheel")
   @runtimeProperty("ModSettings.category", "Wheel input")
@@ -118,7 +118,7 @@ public class GWheelSettings extends IScriptable {
   @runtimeProperty("ModSettings.max", "100")
   @runtimeProperty("ModSettings.step", "5")
   @runtimeProperty("ModSettings.dependency", "hasFfbHardware")
-  let ffbTorquePct: Int32 = 100;
+  let ffbTorquePct: Int32 = 40;
 
   @runtimeProperty("ModSettings.mod", "G-series Wheel")
   @runtimeProperty("ModSettings.category", "Force feedback")

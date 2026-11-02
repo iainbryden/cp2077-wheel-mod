@@ -34,7 +34,7 @@ namespace gwheel::config
         // lock; 200 = full game lock at half the wheel rotation. Clamped at
         // +/-1, so above 100 the outer part of the wheel's range saturates.
         // FFB still sees the raw wheel position. Percent, 50..400.
-        int32_t     steerGainPct = 100;
+        int32_t     steerGainPct = 300;
     };
 
     struct Ffb
