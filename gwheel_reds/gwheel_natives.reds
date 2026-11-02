@@ -25,6 +25,8 @@ public static native func GWheel_SetInputEnabled(v: Bool) -> Bool;
 // or "sharp" (concave, sharp center). Pedals are unaffected.
 public static native func GWheel_SetSteerDeadzonePct(pct: Int32) -> Bool;
 public static native func GWheel_SetResponseCurve(v: String) -> Bool;
+// SteerGainPct (50..400) scales the steer sent to the game; 100 = 1:1.
+public static native func GWheel_SetSteerGainPct(pct: Int32) -> Bool;
 
 public static native func GWheel_SetFfbEnabled(v: Bool) -> Bool;
 public static native func GWheel_SetFfbDebugLogging(v: Bool) -> Bool;

@@ -28,6 +28,13 @@ namespace gwheel::config
         //   "sharp"    : concave (|v|^0.6), sharper near center, full at lock.
         //               Helps tight handling at the cost of twitchiness.
         std::string responseCurve = "default";
+
+        // Steering sensitivity, applied to the steer value written into the
+        // game (after deadzone + curve). 100 = wheel lock maps to full game
+        // lock; 200 = full game lock at half the wheel rotation. Clamped at
+        // +/-1, so above 100 the outer part of the wheel's range saturates.
+        // FFB still sees the raw wheel position. Percent, 50..400.
+        int32_t     steerGainPct = 100;
     };
 
     struct Ffb
@@ -206,6 +213,7 @@ namespace gwheel::config
     void SetInputEnabled(bool v);
     void SetSteerDeadzonePct(int32_t v);
     void SetResponseCurve(std::string_view v);
+    void SetSteerGainPct(int32_t v);
 
     void SetFfbEnabled(bool v);
     void SetFfbDebugLogging(bool v);

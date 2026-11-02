@@ -84,6 +84,16 @@ public class GWheelSettings extends IScriptable {
   @runtimeProperty("ModSettings.mod", "G-series Wheel")
   @runtimeProperty("ModSettings.category", "Wheel input")
   @runtimeProperty("ModSettings.category.order", "100")
+  @runtimeProperty("ModSettings.displayName", "Steering sensitivity (%)")
+  @runtimeProperty("ModSettings.description", "How much the car steers per degree of wheel rotation. 100 means full wheel lock gives full game lock. 200 reaches full game lock at half the wheel rotation. Raise it if you have to turn the wheel too far; lower it if steering is twitchy.")
+  @runtimeProperty("ModSettings.min", "50")
+  @runtimeProperty("ModSettings.max", "400")
+  @runtimeProperty("ModSettings.step", "10")
+  let steerGainPct: Int32 = 100;
+
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Wheel input")
+  @runtimeProperty("ModSettings.category.order", "100")
   @runtimeProperty("ModSettings.displayName", "Response curve")
   @runtimeProperty("ModSettings.description", "Reshapes how wheel rotation maps to steering. Default is linear. Subdued softens response near center for relaxed cruising. Sharp pulls more response near center for tight handling at the cost of twitchiness.")
   @runtimeProperty("ModSettings.displayValues.Default", "Default")
@@ -630,6 +640,7 @@ public class GWheelSettings extends IScriptable {
   public func Push() -> Void {
     GWheel_SetInputEnabled(this.inputEnabled);
     GWheel_SetSteerDeadzonePct(this.steerDeadzonePct);
+    GWheel_SetSteerGainPct(this.steerGainPct);
     GWheel_SetResponseCurve(GWheelSettings.ResponseCurveToken(this.responseCurve));
 
     GWheel_SetFfbEnabled(this.ffbEnabled);
