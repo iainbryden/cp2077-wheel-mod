@@ -175,6 +175,37 @@ namespace gwheel::wheel
         inline std::atomic<uint64_t> s_joltStartMs{0};
         inline std::atomic<uint32_t> s_joltDurationMs{0};
 
+        // Last time (steady_clock ns) each effect was sent to the SDK; paces
+        // the small-change resends in ShouldResend.
+        inline std::atomic<int64_t> s_lastCoefSentNs{0};
+        inline std::atomic<int64_t> s_lastConstSentNs{0};
+        inline std::atomic<int64_t> s_lastDamperSentNs{0};
+        inline std::atomic<int64_t> s_lastBumpySentNs{0};
+
+        // Resend policy for an already-playing effect. Changes of
+        // kCoarseStep points or more, and a return to exactly 0, go out
+        // immediately. Smaller changes go out once kFineInterval has passed
+        // since this effect was last sent, so slow ramps track within ~8 ms
+        // instead of waiting to accumulate a 5-point jump (which held them
+        // back by up to ~100 ms and could leave a 1-4% force latched when
+        // the target fell to 0), while still capping SDK calls at ~125 Hz
+        // per effect at high frame rates.
+        inline bool ShouldResend(int target, int prev, std::atomic<int64_t>& lastSentNs)
+        {
+            constexpr int     kCoarseStep   = 5;
+            constexpr int64_t kFineInterval = 8'000'000; // ns
+            if (target == prev) return false;
+            const int64_t now = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count();
+            if (target == 0 || std::abs(target - prev) >= kCoarseStep
+                || now - lastSentNs.load(std::memory_order_relaxed) >= kFineInterval)
+            {
+                lastSentNs.store(now, std::memory_order_relaxed);
+                return true;
+            }
+            return false;
+        }
+
         inline void Reset()
         {
             s_lastCoefPct.store(-1, std::memory_order_release);
@@ -703,7 +734,7 @@ namespace gwheel::wheel
                 s_lastCoefPct.store(-1, std::memory_order_release);
             }
         }
-        else if (prevS < 0 || std::abs(coefPct - prevS) >= 5)
+        else if (prevS < 0 || ShouldResend(coefPct, prevS, s_lastCoefSentNs))
         {
             if (bcMove)
                 log::DebugF("[gwheel:ffb-bisect] PRE PlaySpring(%.4f)", coef);
@@ -861,7 +892,7 @@ namespace gwheel::wheel
             log::DebugF("[gwheel:ffb-bisect] post-active math: constForce=%+.4f constPct=%d steerShape=%.4f signSteer=%+.0f counterForce=%+.4f",
                        constForce, constPct, steerShape, signSteer, counterForce);
         const int prevC    = s_lastConstPct.load(std::memory_order_acquire);
-        if (prevC == INT_MIN || std::abs(constPct - prevC) >= 5)
+        if (prevC == INT_MIN || ShouldResend(constPct, prevC, s_lastConstSentNs))
         {
             if (constPct == 0 && prevC != INT_MIN)
             {
@@ -901,7 +932,7 @@ namespace gwheel::wheel
             log::DebugF("[gwheel:ffb-bisect] damper math: damperCoef=%.4f damperPct=%d speedSq=%.4f",
                        damperCoef, damperPct, speedSq);
         const int prevD        = s_lastDamperPct.load(std::memory_order_acquire);
-        if (prevD < 0 || std::abs(damperPct - prevD) >= 5)
+        if (prevD < 0 || ShouldResend(damperPct, prevD, s_lastDamperSentNs))
         {
             if (damperPct == 0 && prevD > 0)
             {
@@ -979,7 +1010,7 @@ namespace gwheel::wheel
         if (bcMove)
             log::DebugF("[gwheel:ffb-bisect] surface math: bumpyMag=%.4f bumpyPct=%d", bumpyMag, bumpyPct);
         const int prevB      = s_lastBumpyPct.load(std::memory_order_acquire);
-        if (prevB < 0 || std::abs(bumpyPct - prevB) >= 2)
+        if (prevB < 0 || ShouldResend(bumpyPct, prevB, s_lastBumpySentNs))
         {
             if (bumpyPct == 0 && prevB > 0)
             {
