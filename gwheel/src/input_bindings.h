@@ -29,6 +29,11 @@ namespace gwheel::input_bindings
     // on foot (sources::InVehicle).
     void OnTick(const sources::Frame& frame);
 
+    // Sends the key-up for tap actions whose hold time has elapsed. Called
+    // every pump tick, connected or not, so a tap is never left held down.
+    // releaseAll = true sends every pending key-up immediately (shutdown).
+    void ServicePendingTaps(bool releaseAll = false);
+
     // ---------- Capture mode ------------------------------------------------
     //
     // Mod Settings' InputBinding primitive calls these from the listening

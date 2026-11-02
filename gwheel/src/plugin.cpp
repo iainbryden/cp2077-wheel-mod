@@ -54,6 +54,7 @@ namespace gwheel
                 sources::Publish(frame);
                 if (frame.connected)
                     input_bindings::OnTick(frame);
+                input_bindings::ServicePendingTaps();
                 std::this_thread::sleep_for(4ms);
             }
             log::Info("[gwheel] pump thread stopped");
@@ -138,6 +139,7 @@ namespace gwheel
 
         g_pumpRunning.store(false, std::memory_order_release);
         if (g_pumpThread.joinable()) g_pumpThread.join();
+        input_bindings::ServicePendingTaps(/*releaseAll=*/true);
 
         // Defensive zeroing of telemetry sources. Threads that read
         // these are already joined; this just ensures the state is
