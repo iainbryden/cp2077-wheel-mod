@@ -22,6 +22,16 @@
 // leaves TweakDB untouched in effect. Changes live in memory only; nothing
 // is written to game files, and a restart resets everything.
 //
+// Safeguards, since TweakDB writes are the riskiest thing this plugin does:
+//   - Every candidate flat is validated (exists, is a Float, holds a
+//     plausible rate) before anything is written; if more than 10% fail,
+//     nothing is written this session.
+//   - Written rates are capped at 3000 deg/s.
+//   - A marker file (steering_speed.applying, next to the DLL) exists only
+//     while writes are in progress. If a session dies mid-write, the next
+//     session skips the writes once and logs why, instead of repeating it.
+//   - At 100% with nothing changed this session, TweakDB is never touched.
+//
 // Must be called from the game / script thread (it is driven by the
 // GWheel_SetSteerSpeedPct native), never from the pump or other worker
 // threads: TweakDB flat creation is not safe to race with itself.
