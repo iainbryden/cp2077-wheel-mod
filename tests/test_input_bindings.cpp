@@ -804,9 +804,12 @@ TEST_CASE(rebind_during_a_press_still_releases_the_key)
         reboundDone.wait_for(std::chrono::milliseconds(200));
     };
     OnTick(FrameWith(1u << 0));
+    // The rebinder sends Horn's UP through the hook after OnTick returns,
+    // so wait for it before touching the hook.
+    const bool started = rebinder.joinable();
+    if (started) rebinder.join();
     testsupport_input::g_onSend = nullptr;
-    REQUIRE(rebinder.joinable());
-    rebinder.join();
+    REQUIRE(started);
 
     CHECK_EQ(Downs('Z'), 1);
     CHECK_EQ(Ups('Z'), 1);
