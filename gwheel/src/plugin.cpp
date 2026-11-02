@@ -131,6 +131,8 @@ namespace gwheel
                 sources::Publish(frame);
                 if (frame.connected)
                     input_bindings::OnTick(frame);
+                else
+                    input_bindings::ReleaseHeld();  // no release edges arrive while unplugged
                 input_bindings::ServicePendingTaps();
 
                 // Fixed-rate schedule. If a tick overran (stall, breakpoint,
@@ -226,6 +228,7 @@ namespace gwheel
         g_pumpRunning.store(false, std::memory_order_release);
         if (g_pumpThread.joinable()) g_pumpThread.join();
         input_bindings::ServicePendingTaps(/*releaseAll=*/true);
+        input_bindings::ReleaseHeld();
 
         // Defensive zeroing of telemetry sources. Threads that read
         // these are already joined; this just ensures the state is
