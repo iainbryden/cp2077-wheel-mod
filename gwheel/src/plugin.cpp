@@ -13,8 +13,12 @@
 #include "mod_settings_seed.h"
 #include "trueforce_loader.h"
 
+#include <windows.h>
+
+#include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <thread>
 
 namespace gwheel
@@ -43,19 +47,101 @@ namespace gwheel
             return f;
         }
 
+        // The pump runs on a fixed 4 ms schedule. Plain sleep_for(4ms) is
+        // rounded up to the system timer resolution (15.6 ms unless some
+        // process raised it), which can drop the pump to ~64 Hz and leave the
+        // axes the game reads up to ~16 ms stale. A high-resolution waitable
+        // timer keeps the period close to 4 ms regardless, and above-normal
+        // priority keeps the game's own worker threads from delaying it.
+        constexpr auto kPumpPeriod = std::chrono::milliseconds(4);
+
+        class PumpTimer
+        {
+        public:
+            PumpTimer()
+                : timer_(CreateWaitableTimerExW(nullptr, nullptr,
+                                                CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
+                                                TIMER_ALL_ACCESS))
+            {
+                if (!timer_)
+                    log::WarnF("[gwheel] high-resolution pump timer unavailable (error %lu); falling back to sleep_for",
+                               GetLastError());
+            }
+            ~PumpTimer() { if (timer_) CloseHandle(timer_); }
+            PumpTimer(const PumpTimer&) = delete;
+            PumpTimer& operator=(const PumpTimer&) = delete;
+
+            void SleepFor(std::chrono::steady_clock::duration d)
+            {
+                if (timer_)
+                {
+                    LARGE_INTEGER due;
+                    // Negative = relative, in 100 ns units.
+                    due.QuadPart = -std::max<long long>(
+                        1, std::chrono::duration_cast<std::chrono::nanoseconds>(d).count() / 100);
+                    if (SetWaitableTimer(timer_, &due, 0, nullptr, nullptr, FALSE))
+                    {
+                        WaitForSingleObject(timer_, INFINITE);
+                        return;
+                    }
+                }
+                std::this_thread::sleep_for(d);
+            }
+
+        private:
+            HANDLE timer_;
+        };
+
         void PumpLoop()
         {
-            using namespace std::chrono_literals;
+            using clock = std::chrono::steady_clock;
             log::Info("[gwheel] pump thread started (250 Hz)");
+            if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL))
+                log::WarnF("[gwheel] pump SetThreadPriority failed (error %lu)", GetLastError());
+
+            PumpTimer timer;
+
+            // Measured tick period, logged once a minute so the real rate
+            // shows up in gwheel-*.log.
+            constexpr uint32_t kStatsTicks = 15000; // ~60 s at 250 Hz
+            uint32_t           statTicks   = 0;
+            clock::duration    statMax{};
+            clock::time_point  statStart   = clock::now();
+            clock::time_point  lastTick    = statStart;
+
+            clock::time_point next = clock::now();
             while (g_pumpRunning.load(std::memory_order_acquire))
             {
+                const clock::time_point tickStart = clock::now();
+                statMax = std::max(statMax, tickStart - lastTick);
+                lastTick = tickStart;
+                if (++statTicks == kStatsTicks)
+                {
+                    const double avgMs = std::chrono::duration<double, std::milli>(tickStart - statStart).count()
+                                       / kStatsTicks;
+                    log::InfoF("[gwheel] pump period avg=%.2f ms max=%.2f ms over %u ticks",
+                               avgMs, std::chrono::duration<double, std::milli>(statMax).count(), kStatsTicks);
+                    statTicks = 0;
+                    statMax   = {};
+                    statStart = tickStart;
+                }
+
                 wheel::Pump();
                 const sources::Frame frame = BuildFrame(wheel::CurrentSnapshot());
                 sources::Publish(frame);
                 if (frame.connected)
                     input_bindings::OnTick(frame);
                 input_bindings::ServicePendingTaps();
-                std::this_thread::sleep_for(4ms);
+
+                // Fixed-rate schedule. If a tick overran (stall, breakpoint,
+                // suspend), restart the schedule from now instead of
+                // bursting to catch up.
+                next += kPumpPeriod;
+                const clock::time_point now = clock::now();
+                if (next <= now)
+                    next = now;
+                else
+                    timer.SleepFor(next - now);
             }
             log::Info("[gwheel] pump thread stopped");
         }
