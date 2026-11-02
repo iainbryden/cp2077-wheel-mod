@@ -8,6 +8,10 @@
 // Windows: a test run must never type into whatever window has focus.
 namespace testsupport_input
 {
+    // Optional hook run for each event as it is "sent"; lets a test act at
+    // an exact point inside dispatch (for example, rebind mid-press).
+    std::function<void(const testsupport::SentInput&)> g_onSend;
+
     UINT WINAPI FakeSendInput(UINT count, LPINPUT inputs, int /*size*/)
     {
         for (UINT i = 0; i < count; ++i)
@@ -28,6 +32,7 @@ namespace testsupport_input
                 s.extraInfo  = in.mi.dwExtraInfo;
             }
             testsupport::SentInputs().push_back(s);
+            if (g_onSend) g_onSend(s);
         }
         return count;
     }
@@ -65,6 +70,7 @@ namespace testsupport_input
 // table above, so both live in this test file.
 #include "kbd_hook.cpp"
 
+#include <future>
 #include <set>
 #include <thread>
 
@@ -772,4 +778,145 @@ TEST_CASE(held_every_down_has_exactly_one_up)
         CHECK(!down);
         CHECK(Downs(vk) > 0);
     }
+}
+
+// ---- Second review (2026-11-02) ------------------------------------------------
+
+TEST_CASE(rebind_during_a_press_still_releases_the_key)
+{
+    // The reviewer's interleaving: the game thread rebinds Horn at the
+    // moment the pump has sent Horn's DOWN but not yet recorded it. The
+    // rebind must still end with the key released.
+    Fixture fx;
+    SetActionBinding("Horn", "wheel:0");
+
+    std::thread rebinder;
+    std::promise<void> rebound;
+    auto reboundDone = rebound.get_future();
+    testsupport_input::g_onSend = [&](const testsupport::SentInput& s) {
+        if (!(s.keyboard && s.vk == 'Z' && !s.keyUp) || rebinder.joinable()) return;
+        rebinder = std::thread([&] {
+            SetActionBinding("Horn", "wheel:1");
+            rebound.set_value();
+        });
+        // Give the rebind every chance to run right now, inside dispatch.
+        // With dispatch serialized it can't, and this wait times out.
+        reboundDone.wait_for(std::chrono::milliseconds(200));
+    };
+    OnTick(FrameWith(1u << 0));
+    testsupport_input::g_onSend = nullptr;
+    REQUIRE(rebinder.joinable());
+    rebinder.join();
+
+    CHECK_EQ(Downs('Z'), 1);
+    CHECK_EQ(Ups('Z'), 1);
+    OnTick(FrameWith(0));                       // old button let go: nothing more
+    CHECK_EQ(Ups('Z'), 1);
+}
+
+TEST_CASE(press_while_input_disabled_is_not_replayed_on_enable)
+{
+    Fixture fx;
+    config::SetActionBinding("Horn", "wheel:0");
+    config::SetInputEnabled(false);
+    OnTick(FrameWith(0));
+    OnTick(FrameWith(1u << 0));                 // pressed while disabled
+    config::SetInputEnabled(true);
+    OnTick(FrameWith(1u << 0));                 // still held after enabling
+    CHECK(SentInputs().empty());
+    OnTick(FrameWith(0));
+    OnTick(FrameWith(1u << 0));                 // a fresh press works
+    CHECK_EQ(Downs('Z'), 1);
+}
+
+TEST_CASE(shared_key_tap_does_not_release_a_held_action)
+{
+    // Headlights holds V; CallVehicle taps V.
+    Fixture fx;
+    SetActionBinding("Headlights", "wheel:0");
+    SetActionBinding("CallVehicle", "wheel:1");
+    OnTick(FrameWith(1u << 0));                 // V down (Headlights)
+    OnTick(FrameWith((1u << 0) | (1u << 1)));   // CallVehicle tap: V already down
+    ServicePendingTaps(true);                   // the tap ends
+    CHECK_EQ(Downs('V'), 1);
+    CHECK_EQ(Ups('V'), 0);                      // Headlights still holds V
+    OnTick(FrameWith(1u << 1));                 // let go of Headlights
+    CHECK_EQ(Ups('V'), 1);
+}
+
+TEST_CASE(shared_key_hold_outlasts_a_tap_that_started_first)
+{
+    Fixture fx;
+    SetActionBinding("Headlights", "wheel:0");
+    SetActionBinding("CallVehicle", "wheel:1");
+    OnTick(FrameWith(1u << 1));                 // tap first: V down
+    OnTick(FrameWith((1u << 1) | (1u << 0)));   // then hold Headlights
+    ServicePendingTaps(true);
+    CHECK_EQ(Ups('V'), 0);
+    OnTick(FrameWith(0));
+    CHECK_EQ(Downs('V'), 1);
+    CHECK_EQ(Ups('V'), 1);
+}
+
+TEST_CASE(shared_key_two_taps_send_one_press)
+{
+    // Pause and MenuCancel both tap Esc.
+    Fixture fx;
+    SetActionBinding("Pause", "wheel:0");
+    SetActionBinding("MenuCancel", "wheel:1");
+    OnTick(FrameWith((1u << 0) | (1u << 1)));
+    ServicePendingTaps(true);
+    CHECK_EQ(Downs(VK_ESCAPE), 1);
+    CHECK_EQ(Ups(VK_ESCAPE), 1);
+}
+
+TEST_CASE(shared_keys_stay_paired_under_random_input)
+{
+    Fixture fx;
+    SetActionBinding("Headlights", "wheel:0");    // hold V, vehicle only
+    SetActionBinding("CallVehicle", "wheel:1");   // tap V, anywhere
+    SetActionBinding("Pause", "wheel:2");         // tap Esc
+    SetActionBinding("MenuCancel", "wheel:3");    // tap Esc
+    SetActionBinding("ShootPrimary", "wheel:4");  // hold LMB
+
+    uint32_t rng = 777u;
+    auto next = [&] { rng = rng * 1664525u + 1013904223u; return rng >> 8; };
+    uint32_t buttons = 0;
+    for (int i = 0; i < 4000; ++i)
+    {
+        switch (next() % 12)
+        {
+        case 0: sources::SetInVehicle(!sources::InVehicle()); break;
+        case 1: SetGameFocused(next() % 2 == 0); break;
+        case 2: ReleaseHeld(); break;
+        case 3: SetActionBinding("Headlights", next() % 2 ? "wheel:0" : "wheel:5"); break;
+        default: buttons ^= 1u << (next() % 6); break;
+        }
+        OnTick(FrameWith(buttons));
+        if (next() % 3 == 0) ServicePendingTaps(true);
+    }
+    ServicePendingTaps(true);
+    ReleaseHeld();
+
+    for (uint16_t vk : { static_cast<uint16_t>('V'), static_cast<uint16_t>(VK_ESCAPE) })
+    {
+        bool down = false;
+        for (const auto& s : SentInputs())
+        {
+            if (!s.keyboard || s.vk != vk) continue;
+            if (s.keyUp) { CHECK(down); down = false; }
+            else         { CHECK(!down); down = true; }
+        }
+        CHECK(!down);
+        CHECK(Downs(vk) > 0);
+    }
+    bool lmb = false;
+    for (const auto& s : SentInputs())
+    {
+        if (s.keyboard) continue;
+        if (s.mouseFlags == MOUSEEVENTF_LEFTDOWN) { CHECK(!lmb); lmb = true; }
+        if (s.mouseFlags == MOUSEEVENTF_LEFTUP)   { CHECK(lmb);  lmb = false; }
+    }
+    CHECK(!lmb);
+    CHECK(g_outputOwners.empty());
 }

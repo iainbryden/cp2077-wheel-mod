@@ -560,6 +560,51 @@ namespace gwheel::input_bindings
         std::mutex              g_tapMtx;
         std::vector<PendingTap> g_pendingTaps;
 
+        // Serializes everything that sends input or changes what is held:
+        // the pump's OnTick / ServicePendingTaps / ReleaseHeld and the game
+        // thread's SetActionBinding / Clear. Without it a rebind could run
+        // between a hold's DOWN and its bookkeeping, find nothing to release,
+        // and leave the key down for good. Taken first, before any other
+        // lock in this file; nothing that holds it waits on config's writer.
+        std::mutex g_dispatchMtx;
+
+        // Several actions emit the same output (Headlights and CallVehicle
+        // both press V; Pause and MenuCancel both press Esc). Each output
+        // key / mouse button is reference-counted across the actions holding
+        // it, so the DOWN goes out when the first one presses and the UP
+        // when the last one lets go: one action can't release a key another
+        // is still holding. Guarded by g_dispatchMtx.
+        std::unordered_map<uint32_t, int> g_outputOwners;
+
+        // 0 = not a sustained output (wheel notches, direct method calls).
+        uint32_t OutputKey(const DispatchEntry& e)
+        {
+            switch (e.kind)
+            {
+            case DispatchKind::Keyboard:    return 0x10000u | e.vk;
+            case DispatchKind::MouseButton: return 0x20000u | e.mouseDownFlag;
+            default:                        return 0;
+            }
+        }
+
+        void Press(const DispatchEntry& e)
+        {
+            const uint32_t key = OutputKey(e);
+            if (key == 0 || ++g_outputOwners[key] == 1)
+                FireOne(e, true);
+        }
+
+        void Release(const DispatchEntry& e)
+        {
+            const uint32_t key = OutputKey(e);
+            if (key == 0) { FireOne(e, false); return; }
+            auto it = g_outputOwners.find(key);
+            if (it == g_outputOwners.end()) return;   // nothing of ours is down
+            if (--it->second > 0) return;             // another action still holds it
+            g_outputOwners.erase(it);
+            FireOne(e, false);
+        }
+
         // Hold actions whose DOWN has been sent and whose UP has not. Every
         // DOWN gets exactly one UP: when the button is let go, or earlier
         // when the context that allowed the press goes away (V leaves the
@@ -603,7 +648,7 @@ namespace gwheel::input_bindings
             }
             for (int32_t a : released)
             {
-                FireOne(kDispatch[static_cast<size_t>(a)], false);
+                Release(kDispatch[static_cast<size_t>(a)]);
                 log::InfoF("[gwheel:bind] released held %s (%s)", ActionLabel(a), why);
             }
         }
@@ -638,7 +683,7 @@ namespace gwheel::input_bindings
             {
                 if (e.mode == DispatchMode::Hold && TakeHeld(action))
                 {
-                    FireOne(e, false);
+                    Release(e);
                     log::InfoF("[gwheel:bind] dispatch action=%d %s UP", action, e.label);
                 }
                 return;
@@ -668,12 +713,12 @@ namespace gwheel::input_bindings
                     {
                         if (it->action == action)
                         {
-                            FireOne(e, false);
+                            Release(e);
                             g_pendingTaps.erase(it);
                             break;
                         }
                     }
-                    FireOne(e, true);
+                    Press(e);
                     g_pendingTaps.push_back({ action, std::chrono::steady_clock::now() + kTapHold });
                 }
                 log::InfoF("[gwheel:bind] dispatch action=%d %s TAP", action, e.label);
@@ -681,8 +726,8 @@ namespace gwheel::input_bindings
             else
             {
                 LogForeground(e.label);
-                FireOne(e, true);
                 MarkHeld(action);
+                Press(e);
                 log::InfoF("[gwheel:bind] dispatch action=%d %s DOWN", action, e.label);
             }
         }
@@ -724,7 +769,9 @@ namespace gwheel::input_bindings
         }
 
         // A rebind would leave the old source's release unmatched; let go
-        // of the action first.
+        // of the action first. The dispatch lock keeps a press of the old
+        // binding from landing between this release and the swap below.
+        std::lock_guard dispatch(g_dispatchMtx);
         ReleaseHeldWhere([action](int32_t a) { return a == action; }, "binding changed");
 
         auto& st = S();
@@ -765,6 +812,7 @@ namespace gwheel::input_bindings
 
     void Clear()
     {
+        std::lock_guard dispatch(g_dispatchMtx);
         ReleaseAllHeld("bindings cleared");
         auto& st = S();
         std::lock_guard lk(st.mtx);
@@ -773,6 +821,7 @@ namespace gwheel::input_bindings
 
     void ReleaseHeld()
     {
+        std::lock_guard dispatch(g_dispatchMtx);
         ReleaseAllHeld("input stopped");
     }
 
@@ -806,6 +855,7 @@ namespace gwheel::input_bindings
 
     void OnTick(const sources::Frame& frame)
     {
+        std::lock_guard dispatch(g_dispatchMtx);
         auto& st = S();
 
         const uint32_t buttons = frame.digital.buttons;
@@ -958,6 +1008,12 @@ namespace gwheel::input_bindings
         if (!config::Current().input.enabled)
         {
             ReleaseAllHeld("wheel input disabled");
+            // Keep the baseline current so a button pressed while input was
+            // off doesn't count as a new press when input comes back on.
+            std::lock_guard lk(st.mtx);
+            st.prevButtons = buttons;
+            st.prevPov     = pov;
+            st.havePrev    = true;
             return;
         }
 
@@ -1019,12 +1075,13 @@ namespace gwheel::input_bindings
     void ServicePendingTaps(bool releaseAll)
     {
         const auto now = std::chrono::steady_clock::now();
+        std::lock_guard dispatch(g_dispatchMtx);
         std::lock_guard lk(g_tapMtx);
         for (auto it = g_pendingTaps.begin(); it != g_pendingTaps.end();)
         {
             if (releaseAll || now >= it->due)
             {
-                FireOne(kDispatch[static_cast<size_t>(it->action)], false);
+                Release(kDispatch[static_cast<size_t>(it->action)]);
                 it = g_pendingTaps.erase(it);
             }
             else
