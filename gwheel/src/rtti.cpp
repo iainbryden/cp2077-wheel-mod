@@ -601,7 +601,7 @@ namespace gwheel::rtti
             // / BikePhysics structs are NOT RTTI-visible, so authored values
             // are read from the TweakDB side via these record classes.
             // See tweakdb_physics.cpp for the resolution + first-encounter
-            // property dumps that operators (and Claude) read in the log.
+            // property dumps that show up in the log.
             tweakdb_physics::Init();
 
             // BISECT: RTTI dump disabled. Still registering natives above;
