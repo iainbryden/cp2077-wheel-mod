@@ -83,6 +83,7 @@ namespace gwheel::config
             out << "  \"input\": {\n";
             out << "    \"enabled\": "          << (c.input.enabled ? "true" : "false") << ",\n";
             out << "    \"steerDeadzonePct\": " << c.input.steerDeadzonePct             << ",\n";
+            out << "    \"steerGainPct\": "     << c.input.steerGainPct                 << ",\n";
             {
                 std::string esc;
                 EscapeJsonTo(esc, c.input.responseCurve);
@@ -263,6 +264,7 @@ namespace gwheel::config
 
             ExtractBool  (text, "input",    "enabled",                c.input.enabled);
             ExtractInt   (text, "input",    "steerDeadzonePct",       c.input.steerDeadzonePct);
+            ExtractInt   (text, "input",    "steerGainPct",           c.input.steerGainPct);
             ExtractString(text, "input",    "responseCurve",          c.input.responseCurve);
 
             ExtractBool  (text, "ffb",      "enabled",                c.ffb.enabled);
@@ -440,6 +442,7 @@ namespace gwheel::config
     void SetInputEnabled(bool v)            { Mutate([&](Config& c){ c.input.enabled = v; }); }
 
     void SetSteerDeadzonePct(int32_t v)     { Mutate([&](Config& c){ c.input.steerDeadzonePct = std::clamp(v, 0, 15); }); }
+    void SetSteerGainPct(int32_t v)         { Mutate([&](Config& c){ c.input.steerGainPct = std::clamp(v, 50, 400); }); }
 
     void SetResponseCurve(std::string_view v)
     {

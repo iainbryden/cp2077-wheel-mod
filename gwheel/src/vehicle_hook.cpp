@@ -526,9 +526,10 @@ namespace gwheel::vehicle_hook
             if (cfg.input.enabled)
             {
                 // Compute the wheel's contribution to each axis. G HUB owns
-                // the per-profile operating range, so wheel position passes
-                // through unmodified.
-                const float wheelSteer    = steerEffective;
+                // the per-profile operating range; steerGainPct then scales
+                // how much game lock that rotation produces.
+                const float steerGain     = static_cast<float>(cfg.input.steerGainPct) / 100.f;
+                const float wheelSteer    = Clamp(steerEffective * steerGain, -1.0f, 1.0f);
                 const float wheelThrottle = Clamp(frame.axes.throttle,  0.0f, 1.0f);
                 const float wheelBrake    = Clamp(frame.axes.brake,     0.0f, 1.0f);
 

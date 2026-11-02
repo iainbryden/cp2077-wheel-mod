@@ -470,6 +470,9 @@ namespace gwheel::rtti
             RegisterGlobal(rtti, "GWheel_SetSteerDeadzonePct",
                            reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetInt<&config::SetSteerDeadzonePct>),
                            "Bool", {{ "Int32", "pct" }});
+            RegisterGlobal(rtti, "GWheel_SetSteerGainPct",
+                           reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetInt<&config::SetSteerGainPct>),
+                           "Bool", {{ "Int32", "pct" }});
             RegisterGlobal(rtti, "GWheel_SetResponseCurve",
                            reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetResponseCurve),
                            "Bool", {{ "String", "v" }});
