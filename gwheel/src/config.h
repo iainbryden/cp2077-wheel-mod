@@ -208,7 +208,8 @@ namespace gwheel::config
         std::unordered_map<std::string, std::string> actionBindings;
     };
 
-    // Read the published snapshot. Non-blocking; safe from any thread.
+    // Copy of the published snapshot. Safe from any thread; only a brief
+    // lock is held while taking a reference, never while copying.
     Config Current();
 
     // Load config.json from the plugin's install dir. Falls back to defaults
