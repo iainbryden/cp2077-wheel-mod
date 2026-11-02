@@ -850,6 +850,7 @@ namespace gwheel::vehicle_hook
                 scalars.ffbOutputSignFlip  = cfg.ffb.outputSignFlip;
                 scalars.ffbUseSpring       = cfg.ffb.useSpring;
                 scalars.torquePct          = cfg.ffb.torquePct;
+                scalars.wheelRangeDeg      = cfg.ffb.wheelRangeDeg;
                 scalars.yawFeedbackPct     = cfg.ffb.yawFeedbackPct;
                 scalars.activeTorquePct    = cfg.ffb.activeTorqueStrengthPct;
                 scalars.stationaryMps      = cfg.ffb.stationaryThresholdMps;

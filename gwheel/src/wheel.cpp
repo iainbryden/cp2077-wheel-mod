@@ -532,10 +532,15 @@ namespace gwheel::wheel
         // Operating-range compensation. A 900-deg wheel turns 5x further
         // than a 180-deg wheel for the same SAT output, so the per-degree
         // force feels overwhelming. Scale all FFB inversely with range,
-        // anchored on 180-deg = 1.0. Range is read live from G HUB (cached
-        // by the pump thread, ~1s latency on profile changes). Clamped to
-        // avoid zero and absurd boosts at tight ranges.
-        const int ghubRange = std::clamp(g_backend ? g_backend->GetOperatingRangeDeg() : 540,
+        // anchored on 180-deg = 1.0. The user's "Wheel rotation" setting
+        // wins when set; otherwise the range is read live from G HUB (cached
+        // by the pump thread, ~1s latency on profile changes), which falls
+        // back to 540 when G HUB doesn't answer the SDK query (current G HUB
+        // builds don't). Clamped to avoid zero and absurd boosts at tight
+        // ranges.
+        const bool rangeFromUser = scalars.wheelRangeDeg > 0;
+        const int ghubRange = std::clamp(rangeFromUser ? scalars.wheelRangeDeg
+                                         : (g_backend ? g_backend->GetOperatingRangeDeg() : 540),
                                          40, 1080);
         const float rangeScale = std::clamp(180.f / static_cast<float>(ghubRange),
                                             0.3f, 1.5f);
@@ -550,8 +555,9 @@ namespace gwheel::wheel
             const int prev = s_lastScaleX100.exchange(bucket, std::memory_order_acq_rel);
             if (prev != bucket)
             {
-                log::InfoF("[gwheel] FFB range-scale active: %.2f (range=%d deg)",
-                           rangeScale, ghubRange);
+                log::InfoF("[gwheel] FFB range-scale active: %.2f (range=%d deg, %s)",
+                           rangeScale, ghubRange,
+                           rangeFromUser ? "from Wheel rotation setting" : "from G HUB / 540 fallback");
             }
         }
 

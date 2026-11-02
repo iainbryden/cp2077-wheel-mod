@@ -34,6 +34,8 @@ public static native func GWheel_SetSteerSpeedPct(pct: Int32) -> Bool;
 public static native func GWheel_SetFfbEnabled(v: Bool) -> Bool;
 public static native func GWheel_SetFfbDebugLogging(v: Bool) -> Bool;
 public static native func GWheel_SetFfbTorquePct(pct: Int32) -> Bool;
+// Wheel rotation in degrees for FFB range scaling; 0 = read from G HUB.
+public static native func GWheel_SetFfbWheelRangeDeg(deg: Int32) -> Bool;
 
 // Startup handshake (LED sweep + 4 triplets + centering breath) on wheel bind.
 // Effective at next wheel bind — toggling mid-session does not retroactively

@@ -158,6 +158,7 @@ namespace gwheel::wheel
         bool  ffbOutputSignFlip  = false; // hardware-quirk flip; gates the final constForce sign at the SDK boundary
         bool  ffbUseSpring       = true;  // when false, skips LogiPlaySpringForce (BeamNG-style pipeline)
         int   torquePct          = 100;   // 0..100; reserved for future global multiplier hook
+        int   wheelRangeDeg      = 0;     // user-set rotation range; 0 = use the backend's reading
         int   yawFeedbackPct     = 100;   // 0..100; multiplier on the spring component
         int   activeTorquePct    = 100;   // 0..100; multiplier on the SAT + countersteer
         float stationaryMps      = 0.5f;

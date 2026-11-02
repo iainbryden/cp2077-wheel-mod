@@ -500,6 +500,9 @@ namespace gwheel::rtti
             RegisterGlobal(rtti, "GWheel_SetFfbTorquePct",
                            reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetInt<&config::SetFfbTorquePct>),
                            "Bool", {{ "Int32", "pct" }});
+            RegisterGlobal(rtti, "GWheel_SetFfbWheelRangeDeg",
+                           reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetInt<&config::SetFfbWheelRangeDeg>),
+                           "Bool", {{ "Int32", "deg" }});
 
             RegisterGlobal(rtti, "GWheel_SetHandshakePlayOnStart",
                            reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetBool<&config::SetHandshakePlayOnStart>),

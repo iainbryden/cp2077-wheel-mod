@@ -133,6 +133,17 @@ public class GWheelSettings extends IScriptable {
   @runtimeProperty("ModSettings.mod", "G-series Wheel")
   @runtimeProperty("ModSettings.category", "Force feedback")
   @runtimeProperty("ModSettings.category.order", "200")
+  @runtimeProperty("ModSettings.displayName", "Wheel rotation (degrees)")
+  @runtimeProperty("ModSettings.description", "Set this to the Operating Range in your G HUB profile, so force feedback is scaled correctly for how far your wheel turns. 0 asks G HUB, but current G HUB versions don't answer, and the mod then assumes 540.")
+  @runtimeProperty("ModSettings.min", "0")
+  @runtimeProperty("ModSettings.max", "1080")
+  @runtimeProperty("ModSettings.step", "10")
+  @runtimeProperty("ModSettings.dependency", "hasFfbHardware")
+  let ffbWheelRangeDeg: Int32 = 0;
+
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Force feedback")
+  @runtimeProperty("ModSettings.category.order", "200")
   @runtimeProperty("ModSettings.displayName", "Cornering feedback (%)")
   @runtimeProperty("ModSettings.description", "Adds spring stiffness while the car is rotating.")
   @runtimeProperty("ModSettings.min", "0")
@@ -348,6 +359,7 @@ public class GWheelSettings extends IScriptable {
     GWheel_SetFfbEnabled(this.ffbEnabled);
     GWheel_SetFfbDebugLogging(this.ffbDebugLogging);
     GWheel_SetFfbTorquePct(this.ffbTorquePct);
+    GWheel_SetFfbWheelRangeDeg(this.ffbWheelRangeDeg);
 
     GWheel_SetStationaryThresholdMps(this.stationaryThresholdMps);
     GWheel_SetYawFeedbackPct(this.yawFeedbackPct);
