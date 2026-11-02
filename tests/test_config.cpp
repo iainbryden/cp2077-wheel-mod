@@ -6,6 +6,7 @@
 
 #include <fstream>
 #include <sstream>
+#include <thread>
 
 using namespace gwheel;
 using namespace gwheel::config;
@@ -360,5 +361,49 @@ TEST_CASE(config_load_reads_file_and_falls_back_to_defaults)
     const Config d;
     CHECK_EQ(Current().input.steerGainPct, d.input.steerGainPct);
     CHECK(Current().actionBindings.empty());
+    testsupport::ResetConfigToDefaults();
+}
+
+// ---- Concurrent readers (review 2026-11-02, P1) -------------------------------
+
+TEST_CASE(config_readers_never_see_a_torn_snapshot)
+{
+    // One writer changes two fields together in each update; readers on
+    // other threads (like the pump and the game thread) must always see
+    // the pair match. Before snapshots were immutable, two quick updates
+    // could rewrite the Config a reader was still copying.
+    testsupport::ResetConfigToDefaults();
+    std::atomic<bool> done{false};
+    std::atomic<int>  torn{0};
+    std::atomic<long> reads{0};
+
+    auto reader = [&] {
+        while (!done.load(std::memory_order_acquire))
+        {
+            const Config c = Current();
+            auto it = c.actionBindings.find("Race");
+            const std::string bound = (it == c.actionBindings.end()) ? std::string() : it->second;
+            if (bound != c.music.processName) torn.fetch_add(1);
+            reads.fetch_add(1);
+        }
+    };
+    std::thread r1(reader), r2(reader);
+
+    for (int i = 0; i < 1500; ++i)
+    {
+        // Lengths vary so a torn copy also changes string allocations.
+        const std::string v(static_cast<size_t>(16 + (i * 37) % 200), static_cast<char>('a' + i % 26));
+        Mutate([&](Config& c) {
+            c.music.processName       = v;
+            c.actionBindings["Race"]  = v;
+            c.actionBindings["Pad" + std::to_string(i % 7)] = v;
+        });
+    }
+    done.store(true, std::memory_order_release);
+    r1.join();
+    r2.join();
+
+    CHECK_EQ(torn.load(), 0);
+    CHECK(reads.load() > 0);
     testsupport::ResetConfigToDefaults();
 }

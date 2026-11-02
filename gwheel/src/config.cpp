@@ -11,6 +11,7 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <mutex>
 #include <sstream>
 #include <string>
@@ -21,12 +22,18 @@ namespace gwheel::config
 {
     namespace
     {
+        // Readers take the published snapshot under a short lock and copy
+        // from it afterwards. A snapshot is immutable once published and
+        // stays alive while any reader still holds it, so a settings change
+        // can never overwrite a Config another thread is mid-way through
+        // copying (the strings and the bindings map are not safe to copy
+        // while being assigned).
         struct Store
         {
-            std::mutex            writerMutex;
-            std::atomic<int>      publishedIdx{0};
-            Config                slots[2]{};
-            std::filesystem::path path; // resolved lazily
+            std::mutex                    writerMutex;
+            std::mutex                    snapshotMutex; // guards `published` only
+            std::shared_ptr<const Config> published = std::make_shared<const Config>();
+            std::filesystem::path         path; // resolved lazily
         };
 
         Store& S()
@@ -373,9 +380,13 @@ namespace gwheel::config
         void Publish(const Config& next)
         {
             auto& st = S();
-            const int writeIdx = 1 - st.publishedIdx.load(std::memory_order_relaxed);
-            st.slots[writeIdx] = next;
-            st.publishedIdx.store(writeIdx, std::memory_order_release);
+            auto snapshot = std::make_shared<const Config>(next);
+            {
+                std::lock_guard lk(st.snapshotMutex);
+                st.published.swap(snapshot);
+            }
+            // `snapshot` now holds the previous Config; it is freed here or
+            // by the last reader still copying it.
             ApplyDerived(next);
             SaveLocked(next);
         }
@@ -394,8 +405,12 @@ namespace gwheel::config
     Config Current()
     {
         auto& st = S();
-        const int idx = st.publishedIdx.load(std::memory_order_acquire);
-        return st.slots[idx];
+        std::shared_ptr<const Config> snapshot;
+        {
+            std::lock_guard lk(st.snapshotMutex);
+            snapshot = st.published;
+        }
+        return *snapshot;
     }
 
     void Load()
