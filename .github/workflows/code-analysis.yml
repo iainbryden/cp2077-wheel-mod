@@ -1,6 +1,6 @@
 name: Code analysis
 
-# Static analysis on every pull request and push to the main branches.
+# Static analysis on every pull request and push to main.
 # Findings appear as annotations on the pull request's changed lines and
 # under Security > Code scanning.
 #
@@ -11,7 +11,7 @@ name: Code analysis
 on:
   pull_request:
   push:
-    branches: [main, nightdrive-2.5]
+    branches: [main]
   schedule:
     - cron: "17 4 * * 1"   # weekly, Monday 04:17 UTC, picks up new CodeQL rules
   workflow_dispatch:
