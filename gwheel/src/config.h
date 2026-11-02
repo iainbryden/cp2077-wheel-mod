@@ -55,6 +55,12 @@ namespace gwheel::config
         // Set and uses its slider value. 100 = full, 0 = off.
         int32_t torquePct = 100;
 
+        // Wheel rotation range in degrees, used to scale FFB to the range
+        // (see ApplyFfbFromPhysics). 0 = read it from G HUB through the SDK.
+        // Current G HUB builds don't answer LogiGetOperatingRange, so that
+        // falls back to 540 deg; set this to match G HUB's Operating Range.
+        int32_t wheelRangeDeg = 0;
+
         // Physics-model self-centering. Wheel is free at rest; spring engages
         // and active torque builds with speed². Shape + cruise speed + spring
         // baseline are derived per-car from WheeledPhysics. The knobs below
@@ -225,6 +231,7 @@ namespace gwheel::config
     void SetFfbEnabled(bool v);
     void SetFfbDebugLogging(bool v);
     void SetFfbTorquePct(int32_t v);
+    void SetFfbWheelRangeDeg(int32_t v);
 
     void SetStationaryThresholdMps(float v);
     void SetYawFeedbackPct(int32_t v);

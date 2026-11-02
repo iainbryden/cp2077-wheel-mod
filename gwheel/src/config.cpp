@@ -96,6 +96,7 @@ namespace gwheel::config
             out << "    \"enabled\": "                 << (c.ffb.enabled ? "true" : "false")           << ",\n";
             out << "    \"debugLogging\": "            << (c.ffb.debugLogging ? "true" : "false")      << ",\n";
             out << "    \"torquePct\": "               << c.ffb.torquePct                              << ",\n";
+            out << "    \"wheelRangeDeg\": "           << c.ffb.wheelRangeDeg                          << ",\n";
             out << "    \"stationaryThresholdMps\": "  << c.ffb.stationaryThresholdMps                 << ",\n";
             out << "    \"yawFeedbackPct\": "          << c.ffb.yawFeedbackPct                         << ",\n";
             out << "    \"activeTorqueStrengthPct\": " << c.ffb.activeTorqueStrengthPct                << ",\n";
@@ -272,6 +273,7 @@ namespace gwheel::config
             ExtractBool  (text, "ffb",      "enabled",                c.ffb.enabled);
             ExtractBool  (text, "ffb",      "debugLogging",           c.ffb.debugLogging);
             ExtractInt   (text, "ffb",      "torquePct",              c.ffb.torquePct);
+            ExtractInt   (text, "ffb",      "wheelRangeDeg",          c.ffb.wheelRangeDeg);
             ExtractFloat (text, "ffb",      "stationaryThresholdMps", c.ffb.stationaryThresholdMps);
             ExtractInt   (text, "ffb",      "yawFeedbackPct",         c.ffb.yawFeedbackPct);
             ExtractInt   (text, "ffb",      "activeTorqueStrengthPct", c.ffb.activeTorqueStrengthPct);
@@ -457,6 +459,8 @@ namespace gwheel::config
     void SetFfbEnabled(bool v)              { Mutate([&](Config& c){ c.ffb.enabled = v; }); }
     void SetFfbDebugLogging(bool v)         { Mutate([&](Config& c){ c.ffb.debugLogging = v; }); }
     void SetFfbTorquePct(int32_t v)         { Mutate([&](Config& c){ c.ffb.torquePct = std::clamp(v, 0, 100); }); }
+    // 0 = auto (read from G HUB); otherwise 40..1080 like the wheel itself.
+    void SetFfbWheelRangeDeg(int32_t v)     { Mutate([&](Config& c){ c.ffb.wheelRangeDeg = (v <= 0) ? 0 : std::clamp(v, 40, 1080); }); }
 
     void SetStationaryThresholdMps(float v) { Mutate([&](Config& c){ c.ffb.stationaryThresholdMps = std::clamp(v, 0.f, 10.f); }); }
     void SetYawFeedbackPct(int32_t v)       { Mutate([&](Config& c){ c.ffb.yawFeedbackPct = std::clamp(v, 0, 100); }); }
