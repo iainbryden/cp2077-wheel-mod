@@ -5,7 +5,7 @@
 #include <windows.h>
 #include <mmdeviceapi.h>
 #include <audioclient.h>
-#include <audioclientactivationparams.h>
+#include "audioclientactivationparams_compat.h"
 #include <audiopolicy.h>
 #include <endpointvolume.h>
 #include <mmreg.h>
