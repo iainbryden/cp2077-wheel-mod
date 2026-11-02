@@ -35,6 +35,12 @@ namespace gwheel::config
         // +/-1, so above 100 the outer part of the wheel's range saturates.
         // FFB still sees the raw wheel position. Percent, 50..400.
         int32_t     steerGainPct = 300;
+
+        // Steering speed: scales the game's per-vehicle limit on how fast
+        // the road wheels follow the steer input (see steering_speed.h).
+        // 100 = authored rates. Applies to vehicles spawned after the
+        // change. Percent, 100..1000.
+        int32_t     steerSpeedPct = 100;
     };
 
     struct Ffb
@@ -214,6 +220,7 @@ namespace gwheel::config
     void SetSteerDeadzonePct(int32_t v);
     void SetResponseCurve(std::string_view v);
     void SetSteerGainPct(int32_t v);
+    void SetSteerSpeedPct(int32_t v);
 
     void SetFfbEnabled(bool v);
     void SetFfbDebugLogging(bool v);

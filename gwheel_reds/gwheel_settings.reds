@@ -94,6 +94,16 @@ public class GWheelSettings extends IScriptable {
   @runtimeProperty("ModSettings.mod", "G-series Wheel")
   @runtimeProperty("ModSettings.category", "Wheel input")
   @runtimeProperty("ModSettings.category.order", "100")
+  @runtimeProperty("ModSettings.displayName", "Steering speed (%)")
+  @runtimeProperty("ModSettings.description", "How fast the car's front wheels follow the steering wheel. The game limits this per vehicle (about 100 degrees per second), which feels like lag on a wheel. 100 keeps the game's speed; 300 is three times faster. Applies to vehicles spawned after the change: re-summon your car or reload a save.")
+  @runtimeProperty("ModSettings.min", "100")
+  @runtimeProperty("ModSettings.max", "1000")
+  @runtimeProperty("ModSettings.step", "25")
+  let steerSpeedPct: Int32 = 100;
+
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Wheel input")
+  @runtimeProperty("ModSettings.category.order", "100")
   @runtimeProperty("ModSettings.displayName", "Response curve")
   @runtimeProperty("ModSettings.description", "Reshapes how wheel rotation maps to steering. Default is linear. Subdued softens response near center for relaxed cruising. Sharp pulls more response near center for tight handling at the cost of twitchiness.")
   @runtimeProperty("ModSettings.displayValues.Default", "Default")
@@ -332,6 +342,7 @@ public class GWheelSettings extends IScriptable {
     GWheel_SetInputEnabled(this.inputEnabled);
     GWheel_SetSteerDeadzonePct(this.steerDeadzonePct);
     GWheel_SetSteerGainPct(this.steerGainPct);
+    GWheel_SetSteerSpeedPct(this.steerSpeedPct);
     GWheel_SetResponseCurve(GWheelSettings.ResponseCurveToken(this.responseCurve));
 
     GWheel_SetFfbEnabled(this.ffbEnabled);

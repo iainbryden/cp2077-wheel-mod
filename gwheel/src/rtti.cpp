@@ -9,6 +9,7 @@
 #include "tweakdb_physics.h"
 #include "sources.h"
 #include "device_table.h"
+#include "steering_speed.h"
 
 #include <RED4ext/RED4ext.hpp>
 
@@ -168,6 +169,17 @@ namespace gwheel::rtti
             int32_t v = 0; RED4ext::GetParameter(aFrame, &v); aFrame->code++;
             Fn(v);
             if (aOut) *aOut = true;
+        }
+
+        // Stores the setting, then rewrites the game's steering-rate flats.
+        // Script natives run on the game thread, which is where TweakDB
+        // edits must happen.
+        void SetSteerSpeedPct(RED4ext::IScriptable*, RED4ext::CStackFrame* aFrame, bool* aOut, int64_t)
+        {
+            int32_t v = 0; RED4ext::GetParameter(aFrame, &v); aFrame->code++;
+            config::SetSteerSpeedPct(v);
+            const bool ok = steering_speed::Apply(config::Current().input.steerSpeedPct);
+            if (aOut) *aOut = ok;
         }
 
         template <void (*Fn)(float)>
@@ -472,6 +484,9 @@ namespace gwheel::rtti
                            "Bool", {{ "Int32", "pct" }});
             RegisterGlobal(rtti, "GWheel_SetSteerGainPct",
                            reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetInt<&config::SetSteerGainPct>),
+                           "Bool", {{ "Int32", "pct" }});
+            RegisterGlobal(rtti, "GWheel_SetSteerSpeedPct",
+                           reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetSteerSpeedPct),
                            "Bool", {{ "Int32", "pct" }});
             RegisterGlobal(rtti, "GWheel_SetResponseCurve",
                            reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetResponseCurve),
