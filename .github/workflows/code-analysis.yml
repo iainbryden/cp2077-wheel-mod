@@ -1,0 +1,80 @@
+name: Code analysis
+
+# Static analysis on every pull request and push to the main branches.
+# Findings appear as annotations on the pull request's changed lines and
+# under Security > Code scanning.
+#
+# Both analyzers compile the gwheel_tests target, which contains every
+# plugin source except dllmain.cpp, so the plugin code is analysed without
+# Logitech's SDK import library (not in the repository).
+
+on:
+  pull_request:
+  push:
+    branches: [main, nightdrive-2.5]
+  schedule:
+    - cron: "17 4 * * 1"   # weekly, Monday 04:17 UTC, picks up new CodeQL rules
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write   # upload results to code scanning
+
+jobs:
+  codeql:
+    name: CodeQL
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      # vendor/mod_settings points at an unpublished commit; only the
+      # RED4ext SDK is needed.
+      - name: Fetch RED4ext.SDK
+        run: git submodule update --init --depth 1 vendor/RED4ext.SDK
+
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: c-cpp
+          build-mode: manual
+          queries: security-and-quality
+          config: |
+            paths-ignore:
+              - vendor
+              - scratch
+
+      - name: Build
+        run: |
+          cmake -S . -B build/analysis -G "Visual Studio 17 2022" -A x64 -DGWHEEL_BUILD_PLUGIN=OFF -DGWHEEL_BUILD_TESTS=ON
+          cmake --build build/analysis --config Release --target gwheel_tests -- /m
+
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: codeql
+
+  msvc:
+    name: MSVC code analysis
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch RED4ext.SDK
+        run: git submodule update --init --depth 1 vendor/RED4ext.SDK
+
+      - name: Configure
+        run: cmake -S . -B build/msvc -G "Visual Studio 17 2022" -A x64 -DGWHEEL_BUILD_PLUGIN=OFF -DGWHEEL_BUILD_TESTS=ON
+
+      - name: Analyze
+        id: analyze
+        uses: microsoft/msvc-code-analysis-action@v0.1.1
+        with:
+          cmakeBuildDirectory: build/msvc
+          buildConfiguration: Release
+          ruleset: NativeRecommendedRules.ruleset
+          # Third-party headers are not ours to fix.
+          ignoredPaths: ${{ github.workspace }}/vendor
+          ignoredIncludePaths: ${{ github.workspace }}/vendor
+
+      - uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: ${{ steps.analyze.outputs.sarif }}
+          category: msvc
