@@ -25,14 +25,20 @@ namespace gwheel::input_bindings
     // Called once per pump tick with the latest input frame. Edge-detects
     // each bound action's wheel-button / POV sources and dispatches the
     // matching DispatchEntry via SendInput. Gated internally on
-    // config.input.enabled. Vehicle-only actions are suppressed when V is
-    // on foot (sources::InVehicle).
+    // config.input.enabled. New presses are only sent while the game has
+    // focus; vehicle-only presses are suppressed when V is on foot
+    // (sources::InVehicle). Releases of held actions are always sent, and
+    // held actions are let go when focus, vehicle or input state changes.
     void OnTick(const sources::Frame& frame);
 
     // Sends the key-up for tap actions whose hold time has elapsed. Called
     // every pump tick, connected or not, so a tap is never left held down.
     // releaseAll = true sends every pending key-up immediately (shutdown).
     void ServicePendingTaps(bool releaseAll = false);
+
+    // Sends the key-up for every hold action still down. Called by the pump
+    // when the wheel is disconnected (OnTick doesn't run then) and on unload.
+    void ReleaseHeld();
 
     // ---------- Capture mode ------------------------------------------------
     //

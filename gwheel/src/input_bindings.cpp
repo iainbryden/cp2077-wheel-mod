@@ -13,6 +13,7 @@
 
 #include <windows.h>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -559,16 +560,99 @@ namespace gwheel::input_bindings
         std::mutex              g_tapMtx;
         std::vector<PendingTap> g_pendingTaps;
 
-        void Dispatch(int32_t action, bool rising)
+        // Hold actions whose DOWN has been sent and whose UP has not. Every
+        // DOWN gets exactly one UP: when the button is let go, or earlier
+        // when the context that allowed the press goes away (V leaves the
+        // vehicle, the game loses focus, the wheel disconnects, input is
+        // disabled, bindings change, capture starts, the plugin unloads).
+        // Without this, a release that arrived after such a change was
+        // dropped and the game saw the key held down indefinitely.
+        std::mutex           g_heldMtx;
+        std::vector<int32_t> g_heldActions;
+
+        void MarkHeld(int32_t action)
+        {
+            std::lock_guard lk(g_heldMtx);
+            if (std::find(g_heldActions.begin(), g_heldActions.end(), action) == g_heldActions.end())
+                g_heldActions.push_back(action);
+        }
+
+        // Removes `action` from the held set; true if it was there.
+        bool TakeHeld(int32_t action)
+        {
+            std::lock_guard lk(g_heldMtx);
+            auto it = std::find(g_heldActions.begin(), g_heldActions.end(), action);
+            if (it == g_heldActions.end()) return false;
+            g_heldActions.erase(it);
+            return true;
+        }
+
+        // Sends the UP for every held action matching `pred`. The events go
+        // out after the lock is released.
+        template <typename Pred>
+        void ReleaseHeldWhere(Pred&& pred, const char* why)
+        {
+            std::vector<int32_t> released;
+            {
+                std::lock_guard lk(g_heldMtx);
+                for (auto it = g_heldActions.begin(); it != g_heldActions.end();)
+                {
+                    if (pred(*it)) { released.push_back(*it); it = g_heldActions.erase(it); }
+                    else           { ++it; }
+                }
+            }
+            for (int32_t a : released)
+            {
+                FireOne(kDispatch[static_cast<size_t>(a)], false);
+                log::InfoF("[gwheel:bind] released held %s (%s)", ActionLabel(a), why);
+            }
+        }
+
+        void ReleaseAllHeld(const char* why)
+        {
+            ReleaseHeldWhere([](int32_t) { return true; }, why);
+        }
+
+        // SendInput goes to whichever window has focus. Wheel presses are
+        // only sent while one of the game's own windows is in front, so
+        // alt-tabbing away doesn't type or click into another application.
+        bool GameHasFocus()
+        {
+            HWND fg = GetForegroundWindow();
+            if (!fg) return false;
+            DWORD pid = 0;
+            GetWindowThreadProcessId(fg, &pid);
+            return pid == GetCurrentProcessId();
+        }
+
+        void Dispatch(int32_t action, bool rising, bool gameFocused)
         {
             if (action <= 0 || action >= kActionCount) return;
             const auto& e = kDispatch[static_cast<size_t>(action)];
             if (e.kind == DispatchKind::None) return;
 
+            // Releases are never suppressed: a held action always gets its
+            // UP, whatever changed since the DOWN. Taps release themselves
+            // (ServicePendingTaps), so a tap button's release does nothing.
+            if (!rising)
+            {
+                if (e.mode == DispatchMode::Hold && TakeHeld(action))
+                {
+                    FireOne(e, false);
+                    log::InfoF("[gwheel:bind] dispatch action=%d %s UP", action, e.label);
+                }
+                return;
+            }
+
+            if (!gameFocused)
+            {
+                log::DebugF("[gwheel:bind] game not focused: %s suppressed", e.label);
+                return;
+            }
+
             if (e.scope == ActionScope::VehicleOnly && !sources::InVehicle())
             {
-                if (rising)
-                    log::DebugF("[gwheel:bind] on-foot: %s suppressed", e.label);
+                log::DebugF("[gwheel:bind] on-foot: %s suppressed", e.label);
                 return;
             }
 
@@ -577,7 +661,6 @@ namespace gwheel::input_bindings
                 // DOWN now; the UP goes out kTapHold later via
                 // ServicePendingTaps. A re-press while the previous tap is
                 // still held releases it first so DOWN/UP stay paired.
-                if (!rising) return;
                 LogForeground(e.label);
                 {
                     std::lock_guard lk(g_tapMtx);
@@ -597,10 +680,10 @@ namespace gwheel::input_bindings
             }
             else
             {
-                if (rising) LogForeground(e.label);
-                FireOne(e, rising);
-                log::InfoF("[gwheel:bind] dispatch action=%d %s %s",
-                           action, e.label, rising ? "DOWN" : "UP");
+                LogForeground(e.label);
+                FireOne(e, true);
+                MarkHeld(action);
+                log::InfoF("[gwheel:bind] dispatch action=%d %s DOWN", action, e.label);
             }
         }
 
@@ -640,6 +723,10 @@ namespace gwheel::input_bindings
             return;
         }
 
+        // A rebind would leave the old source's release unmatched; let go
+        // of the action first.
+        ReleaseHeldWhere([action](int32_t a) { return a == action; }, "binding changed");
+
         auto& st = S();
         std::lock_guard lk(st.mtx);
 
@@ -678,9 +765,15 @@ namespace gwheel::input_bindings
 
     void Clear()
     {
+        ReleaseAllHeld("bindings cleared");
         auto& st = S();
         std::lock_guard lk(st.mtx);
         st.bindings.clear();
+    }
+
+    void ReleaseHeld()
+    {
+        ReleaseAllHeld("input stopped");
     }
 
     // Synthesize a VK_F24 keypress to wake the listening UI when capture
@@ -858,10 +951,26 @@ namespace gwheel::input_bindings
         // (suppress wheel-button → game-action dispatch during binding).
         if (captureStillArmed)
         {
+            ReleaseAllHeld("bind capture started");
             return;
         }
 
-        if (!config::Current().input.enabled) return;
+        if (!config::Current().input.enabled)
+        {
+            ReleaseAllHeld("wheel input disabled");
+            return;
+        }
+
+        // Context checks, once per tick. Losing focus lets go of every held
+        // action; leaving the vehicle lets go of the vehicle-only ones (an
+        // on-foot action such as holding the phone key keeps going).
+        const bool gameFocused = GameHasFocus();
+        if (!gameFocused)
+            ReleaseAllHeld("game lost focus");
+        if (!sources::InVehicle())
+            ReleaseHeldWhere([](int32_t a) {
+                return kDispatch[static_cast<size_t>(a)].scope == ActionScope::VehicleOnly;
+            }, "left the vehicle");
 
         if (!st.havePrev)
         {
@@ -896,7 +1005,7 @@ namespace gwheel::input_bindings
                            name.c_str(), entry.sources.size(),
                            pressed ? "PRESS" : "RELEASE",
                            entry.action, ActionLabel(entry.action));
-                Dispatch(entry.action, pressed);
+                Dispatch(entry.action, pressed, gameFocused);
             }
         }
 

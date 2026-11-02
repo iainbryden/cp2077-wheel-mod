@@ -2,7 +2,7 @@
 
 Two suites, both run by CTest:
 
-- `gwheel_tests`: C++ tests for the plugin (163 cases).
+- `gwheel_tests`: C++ tests for the plugin (176 cases).
 - `reds_consistency`: Python checks that the redscript settings, the natives
   and the C++ tables agree (15 cases).
 
@@ -44,8 +44,9 @@ executable, an `.ini` in `%TEMP%`) are deleted when the tests finish.
 ## Coverage
 
 Covered: device table, input sources, DirectInput normalisation, axis bindings
-and steering curves, config parsing / saving / setters, button bindings
-(parsing, hold / tap / mouse dispatch, on-foot suppression, capture mode), the
+and steering curves, config parsing / saving / setters and concurrent reads,
+button bindings (parsing, hold / tap / mouse dispatch, on-foot suppression,
+game-focus gating, held keys always released, capture mode), the
 G HUB keyboard filter, the force-feedback pipeline (forces, range scaling,
 reverse, airborne, sliding, bikes, jolts, road surface, resend pacing, pause
 watchdog), the TrueForce signal mix, LED rev strip and visualizer, the audio

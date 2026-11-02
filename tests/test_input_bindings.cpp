@@ -31,10 +31,34 @@ namespace testsupport_input
         }
         return count;
     }
+
+    // The plugin only sends presses while one of its own process's windows
+    // is in front. Tests pick what "in front" is: a hidden window owned by
+    // the test process (focused) or the desktop (another process).
+    HWND g_foreground = nullptr;
+
+    HWND WINAPI FakeGetForegroundWindow()
+    {
+        return g_foreground;
+    }
+
+    HWND OwnWindow()
+    {
+        static HWND h = CreateWindowExW(0, L"STATIC", L"gwheel_tests", 0, 0, 0, 0, 0,
+                                        HWND_MESSAGE, nullptr, GetModuleHandleW(nullptr), nullptr);
+        return h;
+    }
+
+    void SetGameFocused(bool focused)
+    {
+        g_foreground = focused ? OwnWindow() : GetDesktopWindow();
+    }
 }
 
-#define SendInput testsupport_input::FakeSendInput
+#define SendInput           testsupport_input::FakeSendInput
+#define GetForegroundWindow testsupport_input::FakeGetForegroundWindow
 #include "input_bindings.cpp"
+#undef GetForegroundWindow
 #undef SendInput
 
 // The keyboard hook's vehicle-only key list must agree with the dispatch
@@ -47,6 +71,7 @@ namespace testsupport_input
 using namespace gwheel;
 using namespace gwheel::input_bindings;
 using testsupport::SentInputs;
+using testsupport_input::SetGameFocused;
 
 namespace testsupport
 {
@@ -62,6 +87,7 @@ namespace
     void ResetBindingState()
     {
         ServicePendingTaps(true);
+        ReleaseHeld();
         Clear();
         CancelCapture();
         auto& st = S();
@@ -92,7 +118,7 @@ namespace
         return ParseToken(s.data(), s.size(), out);
     }
 
-    // Common setup: defaults, in a vehicle, edge detector primed.
+    // Common setup: defaults, game focused, in a vehicle, edge detector primed.
     struct Fixture
     {
         testsupport::FakeBackend backend;
@@ -100,6 +126,7 @@ namespace
         {
             testsupport::InstallBackend(&backend);
             testsupport::ResetConfigToDefaults();
+            SetGameFocused(true);
             sources::SetInVehicle(true);
             ResetBindingState();
             Prime();
@@ -440,16 +467,12 @@ TEST_CASE(bindings_capture_suppresses_bound_actions)
     for (const auto& s : SentInputs()) CHECK_EQ(s.vk, static_cast<uint16_t>(VK_F24));
     CHECK_EQ(PollLatestCapture(), std::string("wheel:0"));
 
-    // After capture, holding the button fires nothing new. Documents current
-    // behaviour: letting go then sends an unpaired horn key-up, because the
-    // press happened while capture was armed.
+    // After capture, holding and then letting go of the button sends
+    // nothing: the horn was never pressed, so there is no key-up to send.
     SentInputs().clear();
     OnTick(FrameWith(1u << 0));
-    CHECK(SentInputs().empty());
     OnTick(FrameWith(0));
-    REQUIRE(SentInputs().size() == 1);
-    CHECK(SentInputs()[0].keyUp);
-    CHECK_EQ(SentInputs()[0].vk, static_cast<uint16_t>('Z'));
+    CHECK(SentInputs().empty());
 }
 
 TEST_CASE(bindings_capture_axis_waits_for_a_stable_leader)
@@ -545,4 +568,208 @@ TEST_CASE(kbd_hook_key_list_matches_vehicle_only_keyboard_actions)
 TEST_CASE(kbd_hook_is_not_installed_in_tests)
 {
     CHECK(!kbd_hook::IsInstalled());
+}
+
+// ---- Held actions always get their key-up (review 2026-11-02, P1) ----------
+
+namespace
+{
+    int Downs(uint16_t vk)
+    {
+        int n = 0;
+        for (const auto& s : SentInputs()) if (s.keyboard && s.vk == vk && !s.keyUp) ++n;
+        return n;
+    }
+    int Ups(uint16_t vk)
+    {
+        int n = 0;
+        for (const auto& s : SentInputs()) if (s.keyboard && s.vk == vk && s.keyUp) ++n;
+        return n;
+    }
+}
+
+TEST_CASE(held_vehicle_action_released_when_leaving_vehicle)
+{
+    Fixture fx;
+    SetActionBinding("Horn", "wheel:0");
+    OnTick(FrameWith(1u << 0));                 // horn down
+    sources::SetInVehicle(false);               // V gets out, button still held
+    OnTick(FrameWith(1u << 0));
+    CHECK_EQ(Downs('Z'), 1);
+    CHECK_EQ(Ups('Z'), 1);                      // released right away
+    OnTick(FrameWith(0));                       // letting go later sends nothing more
+    CHECK_EQ(Ups('Z'), 1);
+}
+
+TEST_CASE(held_mouse_action_released_when_leaving_vehicle)
+{
+    Fixture fx;
+    SetActionBinding("ShootPrimary", "wheel:6");
+    OnTick(FrameWith(1u << 6));
+    sources::SetInVehicle(false);
+    OnTick(FrameWith(1u << 6));
+    REQUIRE(SentInputs().size() == 2);
+    CHECK_EQ(SentInputs()[0].mouseFlags, static_cast<uint32_t>(MOUSEEVENTF_LEFTDOWN));
+    CHECK_EQ(SentInputs()[1].mouseFlags, static_cast<uint32_t>(MOUSEEVENTF_LEFTUP));
+}
+
+TEST_CASE(held_on_foot_action_survives_leaving_vehicle)
+{
+    Fixture fx;
+    SetActionBinding("OpenPhone", "wheel:2");   // hold, works on foot
+    OnTick(FrameWith(1u << 2));
+    sources::SetInVehicle(false);
+    OnTick(FrameWith(1u << 2));
+    CHECK_EQ(Ups('T'), 0);
+    OnTick(FrameWith(0));
+    CHECK_EQ(Ups('T'), 1);
+}
+
+TEST_CASE(held_action_released_on_disconnect)
+{
+    Fixture fx;
+    SetActionBinding("Handbrake", "wheel:5");
+    OnTick(FrameWith(1u << 5));
+    ReleaseHeld();                              // what the pump does while unplugged
+    CHECK_EQ(Ups(VK_SPACE), 1);
+    OnTick(FrameWith(0));                       // reconnect with the button up
+    CHECK_EQ(Ups(VK_SPACE), 1);
+}
+
+TEST_CASE(held_action_released_when_input_disabled)
+{
+    Fixture fx;
+    SetActionBinding("Horn", "wheel:0");
+    config::SetActionBinding("Horn", "wheel:0"); // keep it bound across config changes
+    OnTick(FrameWith(1u << 0));
+    config::SetInputEnabled(false);              // bindings are republished: releases
+    CHECK_EQ(Ups('Z'), 1);
+    OnTick(FrameWith(1u << 0));
+    OnTick(FrameWith(0));
+    CHECK_EQ(Downs('Z'), 1);
+    CHECK_EQ(Ups('Z'), 1);
+}
+
+TEST_CASE(held_action_released_when_capture_starts)
+{
+    Fixture fx;
+    SetActionBinding("Horn", "wheel:0");
+    OnTick(FrameWith(1u << 0));
+    BeginCapture("button");
+    OnTick(FrameWith(1u << 0));
+    CHECK_EQ(Ups('Z'), 1);
+    CancelCapture();
+}
+
+TEST_CASE(held_action_released_when_rebound_or_cleared)
+{
+    Fixture fx;
+    SetActionBinding("Horn", "wheel:0");
+    OnTick(FrameWith(1u << 0));
+    SetActionBinding("Horn", "wheel:1");        // rebinding while held
+    CHECK_EQ(Ups('Z'), 1);
+    OnTick(FrameWith(0));
+    CHECK_EQ(Ups('Z'), 1);
+
+    SetActionBinding("Handbrake", "wheel:5");
+    OnTick(FrameWith(1u << 5));
+    Clear();
+    CHECK_EQ(Ups(VK_SPACE), 1);
+}
+
+TEST_CASE(held_release_without_press_sends_nothing)
+{
+    Fixture fx;
+    sources::SetInVehicle(false);
+    SetActionBinding("Horn", "wheel:0");
+    OnTick(FrameWith(1u << 0));                 // suppressed on foot
+    sources::SetInVehicle(true);
+    OnTick(FrameWith(0));                       // released in the vehicle
+    CHECK(SentInputs().empty());
+}
+
+// ---- Presses only go to the game (review 2026-11-02, P2) --------------------
+
+TEST_CASE(focus_unfocused_game_gets_no_presses)
+{
+    Fixture fx;
+    SetGameFocused(false);
+    SetActionBinding("Horn", "wheel:0");
+    SetActionBinding("OpenMap", "wheel:1");     // tap, works anywhere in the game
+    OnTick(FrameWith((1u << 0) | (1u << 1)));
+    OnTick(FrameWith(0));
+    ServicePendingTaps(true);
+    CHECK(SentInputs().empty());
+}
+
+TEST_CASE(focus_loss_releases_held_actions)
+{
+    Fixture fx;
+    SetActionBinding("Horn", "wheel:0");
+    OnTick(FrameWith(1u << 0));
+    SetGameFocused(false);                      // alt-tab with the button held
+    OnTick(FrameWith(1u << 0));
+    CHECK_EQ(Ups('Z'), 1);
+
+    // Coming back with the button still held doesn't re-press it; the
+    // next real press does.
+    SetGameFocused(true);
+    OnTick(FrameWith(1u << 0));
+    CHECK_EQ(Downs('Z'), 1);
+    OnTick(FrameWith(0));
+    OnTick(FrameWith(1u << 0));
+    CHECK_EQ(Downs('Z'), 2);
+}
+
+TEST_CASE(focus_null_foreground_counts_as_unfocused)
+{
+    Fixture fx;
+    testsupport_input::g_foreground = nullptr;
+    SetActionBinding("Horn", "wheel:0");
+    OnTick(FrameWith(1u << 0));
+    CHECK(SentInputs().empty());
+}
+
+// ---- Property: every key-down is paired with exactly one key-up -----------
+
+TEST_CASE(held_every_down_has_exactly_one_up)
+{
+    Fixture fx;
+    SetActionBinding("Horn", "wheel:0");          // hold, vehicle only
+    SetActionBinding("Handbrake", "wheel:1");     // hold, vehicle only
+    SetActionBinding("OpenPhone", "wheel:2");     // hold, anywhere
+    SetActionBinding("CameraCycleForward", "wheel:3"); // tap
+
+    uint32_t rng = 12345u;
+    auto next = [&] { rng = rng * 1664525u + 1013904223u; return rng >> 8; };
+    uint32_t buttons = 0;
+    for (int i = 0; i < 4000; ++i)
+    {
+        switch (next() % 10)
+        {
+        case 0: sources::SetInVehicle(!sources::InVehicle()); break;
+        case 1: SetGameFocused(next() % 2 == 0); break;
+        case 2: ReleaseHeld(); break;                         // disconnect tick
+        default: buttons ^= 1u << (next() % 4); break;
+        }
+        OnTick(FrameWith(buttons));
+        if (next() % 3 == 0) ServicePendingTaps(true);
+    }
+    ServicePendingTaps(true);
+    ReleaseHeld();
+
+    for (uint16_t vk : { static_cast<uint16_t>('Z'), static_cast<uint16_t>(VK_SPACE),
+                         static_cast<uint16_t>('T'), static_cast<uint16_t>('Q') })
+    {
+        // Walk the stream: never an up without a down, never two downs.
+        bool down = false;
+        for (const auto& s : SentInputs())
+        {
+            if (!s.keyboard || s.vk != vk) continue;
+            if (s.keyUp) { CHECK(down); down = false; }
+            else         { CHECK(!down); down = true; }
+        }
+        CHECK(!down);
+        CHECK(Downs(vk) > 0);
+    }
 }
