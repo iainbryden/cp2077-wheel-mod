@@ -1,0 +1,34 @@
+name: Unit tests
+
+on:
+  push:
+    branches: [main]   # pull requests run via pull_request
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v5
+
+      # Only the RED4ext SDK is needed. vendor/mod_settings points at a
+      # commit that isn't published, so a recursive checkout would fail.
+      - name: Fetch RED4ext.SDK
+        run: git submodule update --init --depth 1 vendor/RED4ext.SDK
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Configure
+        run: cmake -S . -B build/tests -G "Visual Studio 17 2022" -A x64 -DGWHEEL_BUILD_PLUGIN=OFF -DGWHEEL_BUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build/tests --config Release --target gwheel_tests -- /m
+
+      - name: Test
+        run: ctest --test-dir build/tests -C Release --output-on-failure

@@ -1,17 +1,46 @@
 #pragma once
 
-#include <array>
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 
 namespace gwheel::config
 {
     struct Input
     {
         bool        enabled = true;
-        bool        clutchAsBrake = false;
-        std::string responseCurve = "default"; // default | subdued | sharp
+
+        // Center deadzone applied only to signed-axis bindings (steer).
+        // Wheel hardware reports a small non-zero center offset at rest
+        // (1-3% on most Logitech models), which without filtering causes
+        // a constant tiny steering input -> the car drifts even with hands
+        // off the wheel. Stored as a percent (0..15) so the mod settings
+        // slider can show 0%-15%; converted to a 0..0.15 fraction inside
+        // axis_resolver. Zero disables the deadzone entirely.
+        int32_t     steerDeadzonePct = 2;
+
+        // Response curve applied to signed-axis bindings (steer) AFTER
+        // the deadzone:
+        //   "default"  : linear pass-through.
+        //   "subdued"  : convex (|v|^1.7), softer near center, full at lock.
+        //               Helps drift-prone or low-speed cruising.
+        //   "sharp"    : concave (|v|^0.6), sharper near center, full at lock.
+        //               Helps tight handling at the cost of twitchiness.
+        std::string responseCurve = "default";
+
+        // Steering sensitivity, applied to the steer value written into the
+        // game (after deadzone + curve). 100 = wheel lock maps to full game
+        // lock; 200 = full game lock at half the wheel rotation. Clamped at
+        // +/-1, so above 100 the outer part of the wheel's range saturates.
+        // FFB still sees the raw wheel position. Percent, 50..400.
+        int32_t     steerGainPct = 300;
+
+        // Steering speed: scales the game's per-vehicle limit on how fast
+        // the road wheels follow the steer input (see steering_speed.h).
+        // 100 = authored rates. Applies to vehicles spawned after the
+        // change. Percent, 100..1000.
+        int32_t     steerSpeedPct = 300;
     };
 
     struct Ffb
@@ -25,6 +54,12 @@ namespace gwheel::config
         // the game to drive this value. When unchecked, G HUB ignores our
         // Set and uses its slider value. 100 = full, 0 = off.
         int32_t torquePct = 100;
+
+        // Wheel rotation range in degrees, used to scale FFB to the range
+        // (see ApplyFfbFromPhysics). 0 = read it from G HUB through the SDK.
+        // Current G HUB builds don't answer LogiGetOperatingRange, so that
+        // falls back to 540 deg; set this to match G HUB's Operating Range.
+        int32_t wheelRangeDeg = 180;
 
         // Physics-model self-centering. Wheel is free at rest; spring engages
         // and active torque builds with speed². Shape + cruise speed + spring
@@ -41,6 +76,37 @@ namespace gwheel::config
         float   stationaryThresholdMps  = 0.5f;
         int32_t yawFeedbackPct          = 50;
         int32_t activeTorqueStrengthPct = 100;
+
+        // Flip the sign of all restoring forces (centering spring + active
+        // torque + slip-angle countersteer). Some wheels invert their
+        // FFB-direction convention against the SDK's; this is the user
+        // escape hatch for that case. Off = standard SDK convention.
+        bool    invertDirection = false;
+
+        // Per-wheel hardware-direction quirk: some Logitech wheels (verified
+        // on a G923 2026-05-01) interpret `LogiPlayConstantForce(idx, +pct)`
+        // as a counter-clockwise push, opposite to the SDK's typically-
+        // documented convention (positive = CW). Symptom: with the spring
+        // disabled, constForce alone drives the wheel to full lock instead
+        // of pulling it to center. Enable this toggle if your wheel exhibits
+        // that behavior. Default off so wheels with the documented convention
+        // are unaffected.
+        bool    outputSignFlip = false;
+
+        // User-facing label: "Speed-sensitive stiffness" (a sportscar-style
+        // steering-assist feel). Mechanism: toggles the LogiPlaySpringForce
+        // centering layer on top of the SAT-driven LogiPlayConstantForce.
+        //
+        // On (default): the spring saturates with speed², adding the firm
+        // "steering tightens at highway speed" feel. This is what cars with
+        // electronic power steering do (Lexus, BMW Servotronic, etc.).
+        //
+        // Off: BeamNG-style pure tire-force pipeline — only LogiPlayConstantForce
+        // drives the wheel. Matches what physics-honest sims do. Wheel goes
+        // light at rest and feels more raw at speed; some Logitech hardware
+        // also exhibits a "stuck at deflection" quirk where the SDK spring
+        // cancels the constant-force centering, which this option avoids.
+        bool    useSpring = true;
     };
 
     struct PerVehicle
@@ -72,6 +138,33 @@ namespace gwheel::config
         bool visualizerWhileMusic = true;
     };
 
+    struct TrueForce
+    {
+        // Master enable for the TrueForce vibrotactile channel
+        // (G923 / G Pro and successors). Off by default; the FOMOD
+        // installer ships a config.json with this set to true for
+        // Vortex users, manual installers opt in by editing the file.
+        //
+        // Even when true, the runtime probe still has to find a
+        // usable trueforce_sdk_x64.dll on the user's machine
+        // (provided by their existing G HUB install). If the probe
+        // fails, the feature silently disables itself and emits a
+        // single explanatory line to gwheel-*.log. We never bundle
+        // or redistribute the DLL; the user's licensed copy is the
+        // only one in play.
+        bool enabled = false;
+
+        // Independent opt-in for the TF (vibrotactile) audio-stream
+        // channel. Default false even when `enabled` is true, so users
+        // can validate the TrueForce backend's kinesthetic path
+        // (torque + damping + LEDs through the modern SDK) before
+        // committing to the higher-risk TF synthesis. When true and the
+        // active backend reports caps.vibrotactile, the TF pipeline
+        // (wheel_tf_pipeline.cpp) feeds engine RPM + suspension impacts
+        // + skid texture into logiTrueForceSetTorqueTFfloat each tick.
+        bool feedSignals = false;
+    };
+
     struct Music
     {
         // Target process name for per-process audio capture. Empty =
@@ -94,26 +187,29 @@ namespace gwheel::config
 
     struct Config
     {
-        int32_t     version = 4;
+        int32_t     version = 6;
         Input       input;
         Ffb         ffb;
         Handshake   handshake;
         Led         led;
         Music       music;
+        TrueForce   trueForce;
         PerVehicle  car        = { 1.0f, 20 };
         PerVehicle  motorcycle = { 1.2f, 10 };
         PerVehicle  truck      = { 0.8f, 40 };
         PerVehicle  van        = { 0.9f, 30 };
 
-        // Per-physical-input action binding. Indexed by input_bindings::
-        // PhysicalInput; value is input_bindings::Action as int32_t. Array
-        // size is hardcoded at 20 to match PhysicalInput::kCount. Keep in
-        // sync if we add wheel controls.
-        static constexpr size_t kBindingCount = 20;
-        std::array<int32_t, kBindingCount> bindings{};
+        // Action-keyed binding strings. Key is an action name
+        // ("SteerAxis", "ThrottleAxis", "BrakeAxis", "Horn", ...);
+        // value is a `|`-delimited list of tagged tokens emitted by the
+        // Mod Settings InputBinding primitive (e.g. "wheel-axis:lY",
+        // "wheel:5|keyboard:KEY_H"). Empty string = unbound. Tabula-rasa
+        // on first launch — no migration of v4 `bindings[]`.
+        std::unordered_map<std::string, std::string> actionBindings;
     };
 
-    // Read the published snapshot. Non-blocking; safe from any thread.
+    // Copy of the published snapshot. Safe from any thread; only a brief
+    // lock is held while taking a reference, never while copying.
     Config Current();
 
     // Load config.json from the plugin's install dir. Falls back to defaults
@@ -128,16 +224,22 @@ namespace gwheel::config
     // Per-field setters. Each one swaps the snapshot atomically and writes
     // the updated config back to disk.
     void SetInputEnabled(bool v);
-    void SetClutchAsBrake(bool v);
+    void SetSteerDeadzonePct(int32_t v);
     void SetResponseCurve(std::string_view v);
+    void SetSteerGainPct(int32_t v);
+    void SetSteerSpeedPct(int32_t v);
 
     void SetFfbEnabled(bool v);
     void SetFfbDebugLogging(bool v);
     void SetFfbTorquePct(int32_t v);
+    void SetFfbWheelRangeDeg(int32_t v);
 
     void SetStationaryThresholdMps(float v);
     void SetYawFeedbackPct(int32_t v);
     void SetActiveTorqueStrengthPct(int32_t v);
+    void SetFfbInvertDirection(bool v);
+    void SetFfbOutputSignFlip(bool v);
+    void SetFfbUseSpring(bool v);
 
     void SetHandshakePlayOnStart(bool v);
 
@@ -146,7 +248,12 @@ namespace gwheel::config
 
     void SetMusicProcessName(std::string_view v);
 
-    // Single-input binding: inputId in [0, kBindingCount), action as the
-    // Action int from input_bindings.h.
-    void SetInputBinding(int32_t inputId, int32_t action);
+    void SetTrueForceEnabled(bool v);
+    void SetTrueForceFeedSignals(bool v);
+
+    // Action binding setter. `name` is the action key (e.g. "SteerAxis");
+    // `value` is the delimited tagged-token string from the InputBinding
+    // primitive. Empty value erases the entry. Persists to config.json
+    // and pushes the new binding into axis_resolver immediately.
+    void SetActionBinding(std::string_view name, std::string_view value);
 }

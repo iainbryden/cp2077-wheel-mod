@@ -5,15 +5,17 @@
 #include "vehicle_hook.h"
 #include "plugin.h"
 #include "logging.h"
-#include "rtti_dump.h"
 #include "rtti_offsets.h"
+#include "tweakdb_physics.h"
 #include "sources.h"
 #include "device_table.h"
+#include "steering_speed.h"
 
 #include <RED4ext/RED4ext.hpp>
 
 #include <cstdio>
 #include <string>
+#include <string_view>
 
 namespace gwheel::rtti
 {
@@ -152,12 +154,32 @@ namespace gwheel::rtti
             if (aOut) *aOut = true;
         }
 
+        void SetResponseCurve(RED4ext::IScriptable*, RED4ext::CStackFrame* aFrame, bool* aOut, int64_t)
+        {
+            RED4ext::CString v;
+            RED4ext::GetParameter(aFrame, &v);
+            aFrame->code++;
+            config::SetResponseCurve(std::string_view(v.c_str()));
+            if (aOut) *aOut = true;
+        }
+
         template <void (*Fn)(int32_t)>
         void SetInt(RED4ext::IScriptable*, RED4ext::CStackFrame* aFrame, bool* aOut, int64_t)
         {
             int32_t v = 0; RED4ext::GetParameter(aFrame, &v); aFrame->code++;
             Fn(v);
             if (aOut) *aOut = true;
+        }
+
+        // Stores the setting, then rewrites the game's steering-rate flats.
+        // Script natives run on the game thread, which is where TweakDB
+        // edits must happen.
+        void SetSteerSpeedPct(RED4ext::IScriptable*, RED4ext::CStackFrame* aFrame, bool* aOut, int64_t)
+        {
+            int32_t v = 0; RED4ext::GetParameter(aFrame, &v); aFrame->code++;
+            config::SetSteerSpeedPct(v);
+            const bool ok = steering_speed::Apply(config::Current().input.steerSpeedPct);
+            if (aOut) *aOut = ok;
         }
 
         template <void (*Fn)(float)>
@@ -176,16 +198,34 @@ namespace gwheel::rtti
             if (aOut) *aOut = true;
         }
 
-        // -------- Input bindings --------------------------------------------
+        // -------- Action bindings -------------------------------------------
 
-        void SetInputBinding(RED4ext::IScriptable*, RED4ext::CStackFrame* aFrame, bool* aOut, int64_t)
+        void SetActionBinding(RED4ext::IScriptable*, RED4ext::CStackFrame* aFrame, bool* aOut, int64_t)
         {
-            int32_t inputId = -1;
-            int32_t action = 0;
-            RED4ext::GetParameter(aFrame, &inputId);
-            RED4ext::GetParameter(aFrame, &action);
+            RED4ext::CString name;
+            RED4ext::CString value;
+            RED4ext::GetParameter(aFrame, &name);
+            RED4ext::GetParameter(aFrame, &value);
             aFrame->code++;
-            config::SetInputBinding(inputId, action);
+            config::SetActionBinding(
+                std::string_view(name.c_str()),
+                std::string_view(value.c_str()));
+            if (aOut) *aOut = true;
+        }
+
+        // -------- Redscript log forwarder -----------------------------------
+        //
+        // Bridges redscript-side diagnostic strings into the gwheel-*.log
+        // file. CP2077's native LogChannel writes to a debug channel that
+        // has no sink in retail builds, so we route via the existing
+        // spdlog logger that gwheel already uses for its C++ output.
+
+        void LogPair(RED4ext::IScriptable*, RED4ext::CStackFrame* aFrame, bool* aOut, int64_t)
+        {
+            RED4ext::CString msg;
+            RED4ext::GetParameter(aFrame, &msg);
+            aFrame->code++;
+            gwheel::log::Info(msg.c_str());
             if (aOut) *aOut = true;
         }
 
@@ -215,12 +255,52 @@ namespace gwheel::rtti
 
         // Vehicle telemetry pushed from redscript Blackboard listeners.
         // See gwheel_vehicle_signals.reds.
-        void SetEngineRpmNormalized(RED4ext::IScriptable*, RED4ext::CStackFrame* aFrame, bool* aOut, int64_t)
+        void SetEngineRpmRaw(RED4ext::IScriptable*, RED4ext::CStackFrame* aFrame, bool* aOut, int64_t)
         {
             float v = 0.f;
             RED4ext::GetParameter(aFrame, &v);
             aFrame->code++;
-            sources::SetEngineRpmNormalized(v);
+            sources::SetEngineRpmRaw(v);
+            if (aOut) *aOut = true;
+        }
+
+        // Per-mount engine profile: idle / redline plus the per-gear
+        // shift array. Pushed once from GWheelAttach after walking
+        // VehEngineData; the LED tick reads ShiftRpmForGear(currentGear)
+        // every frame to decide where the bar saturates.
+        void SetEngineProfile(RED4ext::IScriptable*, RED4ext::CStackFrame* aFrame, bool* aOut, int64_t)
+        {
+            float idleRpm = 0.f;
+            float redlineRpm = 0.f;
+            RED4ext::DynArray<float> shifts;
+            RED4ext::GetParameter(aFrame, &idleRpm);
+            RED4ext::GetParameter(aFrame, &redlineRpm);
+            RED4ext::GetParameter(aFrame, &shifts);
+            aFrame->code++;
+            const uint32_t n = shifts.Size();
+            sources::SetEngineProfile(idleRpm, redlineRpm,
+                                      n > 0 ? &shifts[0] : nullptr,
+                                      static_cast<int>(n));
+            log::InfoF("[gwheel:engine] profile pushed: idle=%.0f redline=%.0f gears=%u",
+                       idleRpm, redlineRpm, n);
+            for (uint32_t i = 0; i < n; ++i)
+                log::InfoF("[gwheel:engine]   gear[%u] shift=%.0f", i + 1, shifts[i]);
+            if (aOut) *aOut = true;
+        }
+
+        void ClearEngineProfile(RED4ext::IScriptable*, RED4ext::CStackFrame* aFrame, bool* aOut, int64_t)
+        {
+            aFrame->code++;
+            sources::ClearEngineProfile();
+            if (aOut) *aOut = true;
+        }
+
+        void SetCurrentGear(RED4ext::IScriptable*, RED4ext::CStackFrame* aFrame, bool* aOut, int64_t)
+        {
+            int32_t gear = 0;
+            RED4ext::GetParameter(aFrame, &gear);
+            aFrame->code++;
+            sources::SetCurrentGear(static_cast<int>(gear));
             if (aOut) *aOut = true;
         }
 
@@ -273,6 +353,37 @@ namespace gwheel::rtti
                             kick, ptr, isPlayer ? 1 : 0);
             if (isPlayer)
                 wheel::TriggerJolt(kick, 280); // heavier impact
+            if (aOut) *aOut = true;
+        }
+
+        // -------- Capture natives (Phase 5d) --------------------------------
+        //
+        // Bridge between Mod Settings' InputBinding listening UI and
+        // input_bindings::Capture state. The UI calls BeginCapture(typeHint),
+        // polls each frame, and consumes a captured tagged token on the
+        // first qualifying input. typeHint is "button" or "axis"; unknown
+        // values default to "button".
+
+        void BeginCapture(RED4ext::IScriptable*, RED4ext::CStackFrame* aFrame, bool* aOut, int64_t)
+        {
+            RED4ext::CString hint;
+            RED4ext::GetParameter(aFrame, &hint);
+            aFrame->code++;
+            input_bindings::BeginCapture(hint.c_str());
+            if (aOut) *aOut = true;
+        }
+
+        void PollCapturedInput(RED4ext::IScriptable*, RED4ext::CStackFrame* aFrame, RED4ext::CString* aOut, int64_t)
+        {
+            aFrame->code++;
+            const std::string s = input_bindings::PollLatestCapture();
+            if (aOut) *aOut = RED4ext::CString(s.c_str());
+        }
+
+        void CancelCapture(RED4ext::IScriptable*, RED4ext::CStackFrame* aFrame, bool* aOut, int64_t)
+        {
+            aFrame->code++;
+            input_bindings::CancelCapture();
             if (aOut) *aOut = true;
         }
 
@@ -368,10 +479,18 @@ namespace gwheel::rtti
             RegisterGlobal(rtti, "GWheel_SetInputEnabled",
                            reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetInputEnabled),
                            "Bool", {{ "Bool", "v" }});
-            RegisterGlobal(rtti, "GWheel_SetClutchAsBrake",
-                           reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetBool<&config::SetClutchAsBrake>),
-                           "Bool", {{ "Bool", "v" }});
-
+            RegisterGlobal(rtti, "GWheel_SetSteerDeadzonePct",
+                           reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetInt<&config::SetSteerDeadzonePct>),
+                           "Bool", {{ "Int32", "pct" }});
+            RegisterGlobal(rtti, "GWheel_SetSteerGainPct",
+                           reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetInt<&config::SetSteerGainPct>),
+                           "Bool", {{ "Int32", "pct" }});
+            RegisterGlobal(rtti, "GWheel_SetSteerSpeedPct",
+                           reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetSteerSpeedPct),
+                           "Bool", {{ "Int32", "pct" }});
+            RegisterGlobal(rtti, "GWheel_SetResponseCurve",
+                           reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetResponseCurve),
+                           "Bool", {{ "String", "v" }});
             RegisterGlobal(rtti, "GWheel_SetFfbEnabled",
                            reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetBool<&config::SetFfbEnabled>),
                            "Bool", {{ "Bool", "v" }});
@@ -381,6 +500,9 @@ namespace gwheel::rtti
             RegisterGlobal(rtti, "GWheel_SetFfbTorquePct",
                            reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetInt<&config::SetFfbTorquePct>),
                            "Bool", {{ "Int32", "pct" }});
+            RegisterGlobal(rtti, "GWheel_SetFfbWheelRangeDeg",
+                           reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetInt<&config::SetFfbWheelRangeDeg>),
+                           "Bool", {{ "Int32", "deg" }});
 
             RegisterGlobal(rtti, "GWheel_SetHandshakePlayOnStart",
                            reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetBool<&config::SetHandshakePlayOnStart>),
@@ -395,6 +517,15 @@ namespace gwheel::rtti
             RegisterGlobal(rtti, "GWheel_SetActiveTorqueStrengthPct",
                            reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetInt<&config::SetActiveTorqueStrengthPct>),
                            "Bool", {{ "Int32", "pct" }});
+            RegisterGlobal(rtti, "GWheel_SetFfbInvertDirection",
+                           reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetBool<&config::SetFfbInvertDirection>),
+                           "Bool", {{ "Bool", "v" }});
+            RegisterGlobal(rtti, "GWheel_SetFfbOutputSignFlip",
+                           reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetBool<&config::SetFfbOutputSignFlip>),
+                           "Bool", {{ "Bool", "v" }});
+            RegisterGlobal(rtti, "GWheel_SetFfbUseSpring",
+                           reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetBool<&config::SetFfbUseSpring>),
+                           "Bool", {{ "Bool", "v" }});
 
             RegisterGlobal(rtti, "GWheel_SetLedEnabled",
                            reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetBool<&config::SetLedEnabled>),
@@ -403,9 +534,13 @@ namespace gwheel::rtti
                            reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetBool<&config::SetLedVisualizerWhileMusic>),
                            "Bool", {{ "Bool", "v" }});
 
-            RegisterGlobal(rtti, "GWheel_SetInputBinding",
-                           reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetInputBinding),
-                           "Bool", {{ "Int32", "inputId" }, { "Int32", "action" }});
+            RegisterGlobal(rtti, "GWheel_SetActionBinding",
+                           reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetActionBinding),
+                           "Bool", {{ "String", "name" }, { "String", "value" }});
+
+            RegisterGlobal(rtti, "GWheel_Log",
+                           reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&LogPair),
+                           "Bool", {{ "String", "msg" }});
 
             RegisterGlobal(rtti, "GWheel_SetPlayerVehicle",
                            reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetPlayerVehicle),
@@ -414,9 +549,20 @@ namespace gwheel::rtti
                            reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&ClearPlayerVehicle),
                            "Bool", {});
 
-            RegisterGlobal(rtti, "GWheel_SetEngineRpmNormalized",
-                           reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetEngineRpmNormalized),
+            RegisterGlobal(rtti, "GWheel_SetEngineRpmRaw",
+                           reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetEngineRpmRaw),
                            "Bool", {{ "Float", "v" }});
+            RegisterGlobal(rtti, "GWheel_SetEngineProfile",
+                           reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetEngineProfile),
+                           "Bool", {{ "Float", "idleRpm" },
+                                    { "Float", "redlineRpm" },
+                                    { "array:Float", "perGearShiftRpms" }});
+            RegisterGlobal(rtti, "GWheel_ClearEngineProfile",
+                           reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&ClearEngineProfile),
+                           "Bool", {});
+            RegisterGlobal(rtti, "GWheel_SetCurrentGear",
+                           reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetCurrentGear),
+                           "Bool", {{ "Int32", "gear" }});
             RegisterGlobal(rtti, "GWheel_SetRadioActive",
                            reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&SetRadioActive),
                            "Bool", {{ "Bool", "v" }});
@@ -432,6 +578,15 @@ namespace gwheel::rtti
                            reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&OnWheelMaterial),
                            "Bool", {{ "Int32", "wheelIdx" }, { "CName", "material" }});
 
+            RegisterGlobal(rtti, "GWheel_BeginCapture",
+                           reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&BeginCapture),
+                           "Bool", {{ "String", "typeHint" }});
+            RegisterGlobal(rtti, "GWheel_PollCapturedInput",
+                           reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&PollCapturedInput),
+                           "String", {});
+            RegisterGlobal(rtti, "GWheel_CancelCapture",
+                           reinterpret_cast<RED4ext::ScriptingFunction_t<void*>>(&CancelCapture),
+                           "Bool", {});
 
             log::Info("[gwheel] native functions registered for redscript");
 
@@ -440,6 +595,14 @@ namespace gwheel::rtti
             // by asking the game itself where each field lives. See
             // rtti_offsets.cpp for what gets resolved.
             rtti_offsets::Init();
+
+            // Resolve the TweakDB record classes that authored physics
+            // values live on. The native vehicleWheeledPhysics / CarPhysics
+            // / BikePhysics structs are NOT RTTI-visible, so authored values
+            // are read from the TweakDB side via these record classes.
+            // See tweakdb_physics.cpp for the resolution + first-encounter
+            // property dumps that show up in the log.
+            tweakdb_physics::Init();
 
             // BISECT: RTTI dump disabled. Still registering natives above;
             // just skipping the full class enumeration pass.

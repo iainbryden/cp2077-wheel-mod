@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Read(//s/SteamLibrary/steamapps/common/Cyberpunk 2077/red4ext/logs//**)",
-      "PowerShell(powershell -ExecutionPolicy Bypass -File deploy.ps1 -Game \"S:\\\\SteamLibrary\\\\steamapps\\\\common\\\\Cyberpunk 2077\")"
-    ]
-  }
-}

@@ -6,15 +6,23 @@ set(GWHEEL_SOURCES
   src/sources.cpp
   src/vehicle_hook.cpp
   src/input_bindings.cpp
+  src/axis_resolver.cpp
   src/kbd_hook.cpp
   src/config.cpp
   src/rtti.cpp
-  src/rtti_dump.cpp
   src/rtti_offsets.cpp
+  src/tweakdb_physics.cpp
+  src/steering_speed.cpp
   src/logging.cpp
   src/audio_monitor.cpp
   src/led.cpp
   src/mod_settings_seed.cpp
+  src/trueforce_loader.cpp
+  src/logi_common.cpp
+  src/wheel_backend.cpp
+  src/wheel_backend_logi_legacy.cpp
+  src/wheel_backend_logi_trueforce.cpp
+  src/wheel_tf_pipeline.cpp
 )
 
 set(GWHEEL_HEADERS
@@ -26,15 +34,24 @@ set(GWHEEL_HEADERS
   src/vehicle_hook.h
   src/vehicle_physics_ext.h
   src/input_bindings.h
+  src/axis_resolver.h
   src/kbd_hook.h
   src/config.h
   src/rtti.h
-  src/rtti_dump.h
   src/rtti_offsets.h
+  src/tweakdb_physics.h
+  src/steering_speed.h
   src/audio_monitor.h
   src/led.h
   src/mod_settings_seed.h
+  src/trueforce_loader.h
+  src/logi_common.h
+  src/wheel_backend.h
+  src/wheel_backend_logi_legacy.h
+  src/wheel_backend_logi_trueforce.h
+  src/wheel_tf_pipeline.h
   include/gwheel_abi.h
+  include/trueforce_api.h
 )
 
 add_library(gwheel SHARED
@@ -42,14 +59,14 @@ add_library(gwheel SHARED
   ${GWHEEL_HEADERS}
 )
 
-# Logitech Steering Wheel SDK (vendored under vendor/LogitechSDK_unpacked/).
-set(LOGI_SDK_ROOT "${CMAKE_SOURCE_DIR}/vendor/LogitechSDK_unpacked")
+# Logitech Steering Wheel SDK (vendored under vendor/LogitechSDK/).
+set(LOGI_SDK_ROOT "${CMAKE_SOURCE_DIR}/vendor/LogitechSDK")
 set(LOGI_SDK_INCLUDE_DIR "${LOGI_SDK_ROOT}/Include")
 set(LOGI_SDK_LIB "${LOGI_SDK_ROOT}/Lib/x64/LogitechSteeringWheelLib.lib")
 if(NOT EXISTS "${LOGI_SDK_LIB}")
   message(FATAL_ERROR
     "Logitech SDK import lib not found at ${LOGI_SDK_LIB}. "
-    "Ensure vendor/LogitechSDK_unpacked/ is present.")
+    "Ensure vendor/LogitechSDK/ is present.")
 endif()
 
 target_include_directories(gwheel

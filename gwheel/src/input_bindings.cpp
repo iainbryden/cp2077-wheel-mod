@@ -4,6 +4,7 @@
 #include "sources.h"
 #include "kbd_hook.h"
 #include "vehicle_hook.h"
+#include "wheel.h"
 
 #include <RED4ext/RED4ext.hpp>
 #include <RED4ext/RTTISystem.hpp>
@@ -12,169 +13,140 @@
 
 #include <windows.h>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
-#include <cctype>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <mutex>
+#include <string>
 #include <thread>
+#include <unordered_map>
+#include <vector>
 
 namespace gwheel::input_bindings
 {
     namespace
     {
-        // How a PhysicalInput is derived from a wheel::Snapshot. Unmapped
-        // = this physical control doesn't exist on the current wheel model;
-        // the slot is held in the UI for uniformity but edges never fire.
-        enum class Source { Unmapped, Button, PovDirection };
-        struct InputSourceMap
+        // ---------------- Action enum (internal) -------------------------------
+        //
+        // The Action enum is the internal dispatch identifier. The user-facing
+        // name strings (the keys redscript pushes through GWheel_SetActionBinding)
+        // are stored in kActionNames at parallel indices. The enum integer values
+        // are NOT persisted anywhere — only the action-name string is — so this
+        // enum may be reordered freely without breaking saved configs.
+        //
+        // CameraCycleBackward is the historical C++ name for the "rear-view
+        // camera" tap action. Redscript calls it "RearViewCamera"; the name
+        // table maps that string to this enum slot so dispatch resolves.
+        enum Action : int32_t
         {
-            Source   source = Source::Unmapped;
-            uint32_t value  = 0; // button index (Button) or POV raw value (PovDirection)
+            None = 0,
+
+            Horn,
+            Headlights,
+            Handbrake,
+            Autodrive,
+            ExitVehicle,
+            CallVehicle,
+
+            CameraCycleForward,
+            CameraCycleBackward,    // user-facing name: "RearViewCamera"
+            CameraReset,
+
+            ShootPrimary,
+            ShootSecondary,
+            ShootTertiary,
+
+            NextWeapon,
+            PrevWeapon,
+            WeaponSlot1,
+            WeaponSlot2,
+            SwitchWeapons,
+            HolsterWeapon,
+
+            RadioMenu,
+            RadioNext,
+
+            UseConsumable,
+            IconicCyberware,
+            QuickSave,
+
+            OpenMap,
+            OpenJournal,
+            OpenInventory,
+            OpenPhone,
+            OpenPerks,
+            OpenCrafting,
+            Pause,
+
+            MenuConfirm,
+            MenuCancel,
+            MenuUp,
+            MenuDown,
+            MenuLeft,
+            MenuRight,
+
+            kActionCount
         };
 
-        constexpr InputSourceMap UM()          { return { Source::Unmapped, 0 }; }
-        constexpr InputSourceMap BT(uint32_t v){ return { Source::Button, v }; }
-        constexpr InputSourceMap PV(uint32_t v){ return { Source::PovDirection, v }; }
-
-        using DeviceLayout = std::array<InputSourceMap, kCount>;
-
-        // ------------------------------------------------------------------
-        // G923 Xbox — VERIFIED empirically 2026-04-21 via tools/input_probe
-        // on Grant's hardware. Ground truth.
-        // ------------------------------------------------------------------
-        constexpr DeviceLayout kG923XboxLayout = {{
-            BT(5),         // PaddleLeft
-            BT(4),         // PaddleRight
-            PV(0),         // DpadUp
-            PV(18000),     // DpadDown
-            PV(27000),     // DpadLeft
-            PV(9000),      // DpadRight
-            BT(0),         // A
-            BT(1),         // B
-            BT(2),         // X
-            BT(3),         // Y
-            BT(6),         // Start
-            BT(7),         // Select
-            BT(9),         // LSB
-            BT(8),         // RSB
-            BT(18),        // Plus
-            BT(19),        // Minus
-            BT(22),        // ScrollClick
-            BT(20),        // ScrollCW
-            BT(21),        // ScrollCCW
-            BT(10),        // Xbox
+        // Order MUST match the Action enum positions one-to-one. Strings are
+        // the keys redscript uses; lookups go through ActionFromName.
+        constexpr std::array<const char*, kActionCount> kActionNames = {{
+            "None",
+            "Horn",
+            "Headlights",
+            "Handbrake",
+            "Autodrive",
+            "ExitVehicle",
+            "CallVehicle",
+            "CameraCycleForward",
+            "RearViewCamera",
+            "CameraReset",
+            "ShootPrimary",
+            "ShootSecondary",
+            "ShootTertiary",
+            "NextWeapon",
+            "PrevWeapon",
+            "WeaponSlot1",
+            "WeaponSlot2",
+            "SwitchWeapons",
+            "HolsterWeapon",
+            "RadioMenu",
+            "RadioNext",
+            "UseConsumable",
+            "IconicCyberware",
+            "QuickSave",
+            "OpenMap",
+            "OpenJournal",
+            "OpenInventory",
+            "OpenPhone",
+            "OpenPerks",
+            "OpenCrafting",
+            "Pause",
+            "MenuConfirm",
+            "MenuCancel",
+            "MenuUp",
+            "MenuDown",
+            "MenuLeft",
+            "MenuRight",
         }};
 
-        // ------------------------------------------------------------------
-        // G923 PS / G920 — UNVERIFIED. Physically identical button count
-        // to G923 Xbox; most likely same DInput indices. If bindings feel
-        // wrong on these wheels, re-run tools/input_probe.exe and submit
-        // corrected indices. "Xbox"/"PS" button labels differ physically
-        // but map to the same DInput slots.
-        // ------------------------------------------------------------------
-        constexpr DeviceLayout kG923PSLayout  = kG923XboxLayout;
-        constexpr DeviceLayout kG920Layout    = kG923XboxLayout;
-
-        // ------------------------------------------------------------------
-        // G29 — UNVERIFIED. Same physical control count as G923 (the G923
-        // is effectively a G29 with Trueforce). DInput layout is almost
-        // certainly identical. Labels differ (Cross/Circle/Square/Triangle
-        // for the PS variant) but slots are the same.
-        // ------------------------------------------------------------------
-        constexpr DeviceLayout kG29Layout = kG923XboxLayout;
-
-        // ------------------------------------------------------------------
-        // G27 — UNVERIFIED. Missing many controls the G923 has: no scroll
-        // wheel, no +/- buttons, no Xbox button. The G27 has a 6-speed
-        // shifter + reverse as discrete buttons, but we don't expose those
-        // as PhysicalInputs yet (would require expanding PhysicalInput and
-        // the UI). Face buttons are labeled 1-4 (no ABXY letters).
-        // Paddle indices are known from community DIEM configs.
-        // ------------------------------------------------------------------
-        constexpr DeviceLayout kG27Layout = {{
-            BT(5),         // PaddleLeft
-            BT(4),         // PaddleRight
-            PV(0),         // DpadUp
-            PV(18000),     // DpadDown
-            PV(27000),     // DpadLeft
-            PV(9000),      // DpadRight
-            BT(0),         // "A" (G27 button 1)
-            BT(1),         // "B" (G27 button 2)
-            BT(2),         // "X" (G27 button 3)
-            BT(3),         // "Y" (G27 button 4)
-            BT(6),         // Start
-            BT(7),         // Select
-            UM(),          // LSB (not present on G27)
-            UM(),          // RSB (not present on G27)
-            UM(),          // Plus
-            UM(),          // Minus
-            UM(),          // ScrollClick
-            UM(),          // ScrollCW
-            UM(),          // ScrollCCW
-            UM(),          // Xbox
-        }};
-
-        // ------------------------------------------------------------------
-        // G25 — UNVERIFIED. Very similar to G27 but the D-pad might be
-        // buttons instead of a POV hat. Minimal face buttons. Probably
-        // works basically like G27 for our purposes; users of this wheel
-        // are rare enough that we'll correct if anyone reports issues.
-        // ------------------------------------------------------------------
-        constexpr DeviceLayout kG25Layout = kG27Layout;
-
-        // ------------------------------------------------------------------
-        // Driving Force GT / MOMO / Wingman — UNVERIFIED. Older wheels
-        // with minimal controls. Fall back to G27 layout (paddles + basic
-        // face buttons). Most slots will be Unmapped.
-        // ------------------------------------------------------------------
-        constexpr DeviceLayout kDrivingForceLayout = kG27Layout;
-
-        // ------------------------------------------------------------------
-        // Device registry. Order matters: first friendly-name substring
-        // match wins, so list more-specific names before less-specific.
-        // ------------------------------------------------------------------
-        struct DeviceEntry
+        int32_t ActionFromName(const std::string& name)
         {
-            const char*         nameSubstring; // case-insensitive substring for LogiGetFriendlyProductName
-            const char*         label;         // for logs
-            const DeviceLayout* layout;
-            bool                verified;
-        };
-
-        constexpr DeviceEntry kDeviceRegistry[] = {
-            { "G923 Racing Wheel for Xbox",        "G923 Xbox",       &kG923XboxLayout,      true  },
-            { "G923 Racing Wheel for PlayStation", "G923 PS",         &kG923PSLayout,        false },
-            { "G923",                               "G923 (unknown variant)", &kG923XboxLayout, false },
-            { "G920",                               "G920",            &kG920Layout,          false },
-            { "G29",                                "G29",             &kG29Layout,           false },
-            { "G27",                                "G27",             &kG27Layout,           false },
-            { "G25",                                "G25",             &kG25Layout,           false },
-            { "Driving Force GT",                   "Driving Force GT",&kDrivingForceLayout,  false },
-            { "Driving Force",                      "Driving Force",   &kDrivingForceLayout,  false },
-            { "MOMO",                               "MOMO",            &kDrivingForceLayout,  false },
-            { "Wingman",                            "Wingman",         &kDrivingForceLayout,  false },
-        };
-
-        bool ContainsCaseInsensitive(const char* haystack, const char* needle)
-        {
-            if (!haystack || !needle) return false;
-            for (const char* p = haystack; *p; ++p)
-            {
-                size_t i = 0;
-                while (needle[i] && p[i] &&
-                       std::tolower(static_cast<unsigned char>(p[i])) ==
-                       std::tolower(static_cast<unsigned char>(needle[i])))
-                    ++i;
-                if (!needle[i]) return true;
-            }
-            return false;
+            for (int32_t i = 0; i < kActionCount; ++i)
+                if (name == kActionNames[i]) return i;
+            return Action::None;
         }
 
-        // How each Action translates to a Windows input event. Ordered to
-        // match the Action enum — array index = Action value.
-        // VehicleNative bypasses the keyboard/mouse layer entirely: it
+        // ---------------- Dispatch table --------------------------------------
+        //
+        // How each Action translates to a Windows input event. Indexed by
+        // Action value. VehicleNative bypasses keyboard/mouse entirely: it
         // resolves a method on `vehicleBaseObject` by name via RTTI and
         // invokes it on the cached player-vehicle pointer. The dispatch is
         // independent of any CP2077 controls-menu binding because no
@@ -193,18 +165,14 @@ namespace gwheel::input_bindings
         enum class DispatchMode : uint8_t { Tap, Hold };
 
         // AnyContext  = dispatch regardless of whether V is on foot or
-        //               driving. Reserved for menu-opening actions (Pause,
-        //               OpenMap/Journal/Inventory/Phone/Perks/Crafting,
-        //               QuickSave), menu-nav fallback actions (Menu*), and
-        //               CallVehicle (summon-from-foot is the point).
-        // VehicleOnly = suppress on-foot. The bound keyboard keys mean
+        //               driving. Reserved for menu-opening actions and the
+        //               CallVehicle summon-from-foot affordance.
+        // VehicleOnly = suppress on-foot. CP2077's bound keyboard keys mean
         //               different things when V is walking (Space=jump,
         //               V=summon, F=interact, G=grenade, etc.), so firing
         //               them off a wheel button produces unintended side-
         //               effects. Default for every action that isn't
-        //               explicitly about opening a menu. The in-vehicle
-        //               flag is set from the mount event wrappers; see
-        //               sources::SetInVehicle.
+        //               explicitly about opening a menu.
         enum class ActionScope : uint8_t { AnyContext, VehicleOnly };
 
         struct DispatchEntry
@@ -212,25 +180,14 @@ namespace gwheel::input_bindings
             DispatchKind kind          = DispatchKind::None;
             DispatchMode mode          = DispatchMode::Tap;
             ActionScope  scope         = ActionScope::VehicleOnly;
-            WORD         vk            = 0;    // Keyboard: virtual-key code
-            DWORD        mouseDownFlag = 0;    // MouseButton
+            WORD         vk            = 0;
+            DWORD        mouseDownFlag = 0;
             DWORD        mouseUpFlag   = 0;
-            DWORD        wheelDelta    = 0;    // MouseWheel (signed in low word)
-            const char*  label         = "";   // for logging
-            // VehicleNative: redscript method name (e.g. "ToggleRadioReceiver")
-            // looked up on `vehicleBaseObject` and invoked on the player
-            // vehicle. Stored as const char* (not CName) so the table stays
-            // constexpr — CName resolution happens lazily at first dispatch.
-            // Placed last so existing positional initialisers (K/M/W/KH/etc.)
-            // keep compiling without modification.
+            DWORD        wheelDelta    = 0;
+            const char*  label         = "";
             const char*  vehicleMethodName = nullptr;
         };
 
-        // Default scope for all constructor helpers is VehicleOnly — on-foot
-        // suppression is the rule, AnyContext is the exception. Menu-opening
-        // actions (the A-variants) explicitly opt in.
-        //
-        // Tap-mode constructors (toggles, cycles).
         constexpr DispatchEntry K(WORD vk, const char* lbl)
         {
             return { DispatchKind::Keyboard, DispatchMode::Tap, ActionScope::VehicleOnly, vk, 0, 0, 0, lbl };
@@ -243,7 +200,6 @@ namespace gwheel::input_bindings
         {
             return { DispatchKind::MouseWheel, DispatchMode::Tap, ActionScope::VehicleOnly, 0, 0, 0, static_cast<DWORD>(delta), lbl };
         }
-        // Hold-mode constructors — sustain while the wheel button is held.
         constexpr DispatchEntry KH(WORD vk, const char* lbl)
         {
             return { DispatchKind::Keyboard, DispatchMode::Hold, ActionScope::VehicleOnly, vk, 0, 0, 0, lbl };
@@ -252,72 +208,46 @@ namespace gwheel::input_bindings
         {
             return { DispatchKind::MouseButton, DispatchMode::Hold, ActionScope::VehicleOnly, 0, down, up, 0, lbl };
         }
-        // AnyContext variants (fire on foot and in-vehicle). Menu/pause/
-        // quicksave/CallVehicle only.
         constexpr DispatchEntry KA(WORD vk, const char* lbl)
         {
             return { DispatchKind::Keyboard, DispatchMode::Tap, ActionScope::AnyContext, vk, 0, 0, 0, lbl };
         }
-        // Hold variant of AnyContext keyboard. Used for actions whose CP2077
-        // binding has both a tap meaning (briefly press) and a hold meaning
-        // (sustained press opens a UI), e.g. T = answer call (tap) / open
-        // phone (hold), and where the action is meaningful on foot.
         constexpr DispatchEntry KAH(WORD vk, const char* lbl)
         {
             return { DispatchKind::Keyboard, DispatchMode::Hold, ActionScope::AnyContext, vk, 0, 0, 0, lbl };
         }
-        // Direct-method (Tap, VehicleOnly): resolve `methodName` on
-        // `vehicleBaseObject` via RTTI and invoke it on the cached player
-        // vehicle. CP2077-keybind-immune — no SendInput involved.
         constexpr DispatchEntry VN(const char* methodName, const char* lbl)
         {
             return { DispatchKind::VehicleNative, DispatchMode::Tap, ActionScope::VehicleOnly,
                      0, 0, 0, 0, lbl, methodName };
         }
 
-        // Order MUST match the integer values declared in the Action enum
-        // (input_bindings.h). The dispatcher indexes by Action value and
-        // expects the entry at index N to describe action N. The grouping
-        // comments mirror the enum's so the two are easy to keep aligned.
+        // Order MUST match the Action enum, indexed by Action value.
         constexpr std::array<DispatchEntry, kActionCount> kDispatch = {{
             /* 0  None                */ { DispatchKind::None, DispatchMode::Tap, ActionScope::AnyContext, 0, 0, 0, 0, "None" },
 
-            // --- Driving ----------------------------------------------------
             /* 1  Horn                */ KH('Z',        "Horn (Z, hold)"),
             // Headlights is Hold, not Tap: CP2077's IK_V is shared by four
             // mappings (Vehicle_CycleLights, Vehicle_Siren, CallVehicle,
-            // CloseQuickHackPanel). Resolving the right one needs the game's
-            // context sampler to see V held across at least one driving-tick,
-            // and a 30 ms tap pulse wasn't enough in practice. Mirroring the
-            // physical button gives the game the full press duration.
+            // CloseQuickHackPanel). A 30 ms tap pulse wasn't enough in
+            // practice; mirroring the physical button gives the game the
+            // full press duration to resolve the right meaning.
             /* 2  Headlights          */ KH('V',        "Headlights (V, hold)"),
             /* 3  Handbrake           */ KH(VK_SPACE,   "Handbrake (Space, hold)"),
-            // Autodrive is Hold, not Tap: CP2077's autoDrive input action
-            // requires a sustained G press to engage (verified empirically
-            // 2026-04-24 — physical-keyboard tap of G doesn't toggle, but
-            // a hold does). The 30 ms tap pulse satisfies most other game
-            // actions but not this one. Mirroring the wheel button's
-            // physical hold duration onto G makes both gestures work.
+            // Autodrive needs a sustained G press; tap doesn't engage.
             /* 4  Autodrive           */ KH('G',        "Autodrive (G, hold)"),
-            // ExitVehicle is Hold, not Tap: CP2077 uses hold-to-exit on F
-            // (so you don't punt yourself out mid-drive on a stray press),
-            // which means we need the physical wheel button's hold duration
-            // to propagate as a real sustained F press. Tap mode would only
-            // produce a brief DOWN/UP and never satisfy the hold threshold.
+            // ExitVehicle uses hold-to-exit on F.
             /* 5  ExitVehicle         */ KH('F',        "ExitVehicle (F, hold)"),
             /* 6  CallVehicle         */ KA('V',        "CallVehicle (V)"),
 
-            // --- Camera -----------------------------------------------------
             /* 7  CameraCycleForward  */ K('Q',         "CameraCycleFwd (Q)"),
             /* 8  CameraCycleBackward */ MH(MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP, "Rear-view camera (MMB, hold)"),
             /* 9  CameraReset         */ K('C',         "CameraReset (C)"),
 
-            // --- Combat (shooting) -----------------------------------------
             /* 10 ShootPrimary        */ MH(MOUSEEVENTF_LEFTDOWN,  MOUSEEVENTF_LEFTUP,  "ShootPrimary (LMB, hold)"),
             /* 11 ShootSecondary      */ MH(MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP, "ShootSecondary (RMB, hold)"),
             /* 12 ShootTertiary       */ KH(VK_LCONTROL,"ShootTertiary (LCtrl, hold)"),
 
-            // --- Weapons (selection / cycling) -----------------------------
             /* 13 NextWeapon          */ W(+WHEEL_DELTA,"NextWeapon (MWheelUp)"),
             /* 14 PrevWeapon          */ W(-WHEEL_DELTA,"PrevWeapon (MWheelDown)"),
             /* 15 WeaponSlot1         */ K('1',         "WeaponSlot1 (1)"),
@@ -325,36 +255,26 @@ namespace gwheel::input_bindings
             /* 17 SwitchWeapons       */ KH(VK_MENU,    "SwitchWeapons (Alt, hold for wheel)"),
             /* 18 HolsterWeapon       */ K('B',         "HolsterWeapon (B)"),
 
-            // --- Radio ------------------------------------------------------
-            // RadioMenu is Hold, not Tap: in CP2077 a brief IK_R tap cycles
-            // stations in place, while a sustained hold opens the radio
-            // wheel (station-select UI). Mirroring the physical press
-            // duration lets both gestures work naturally off a single bind.
+            // RadioMenu: tap cycles stations, hold opens the radio wheel —
+            // mirror the press duration so both gestures work.
             /* 19 RadioMenu           */ KH('R',        "RadioMenu (R, hold)"),
-            // RadioNext: direct-method invocation on vehicleBaseObject —
-            // no SendInput in the loop, immune to CP2077 keybind changes.
+            // RadioNext: direct-method call on vehicleBaseObject, immune
+            // to CP2077 keybind changes.
             /* 20 RadioNext           */ VN("NextRadioReceiverStation", "RadioNext (direct)"),
 
-            // --- Gameplay misc ---------------------------------------------
             /* 21 UseConsumable       */ K('X',         "UseConsumable (X)"),
             /* 22 IconicCyberware     */ K('E',         "IconicCyberware (E)"),
             /* 23 QuickSave           */ KA(VK_F5,      "QuickSave (F5)"),
 
-            // --- Menus / fullscreen UI -------------------------------------
             /* 24 OpenMap             */ KA('M',        "OpenMap (M)"),
             /* 25 OpenJournal         */ KA('J',        "OpenJournal (J)"),
             /* 26 OpenInventory       */ KA('I',        "OpenInventory (I)"),
-            // OpenPhone is Hold, not Tap: a brief IK_T tap in CP2077 only
-            // answers/rejects an incoming call (PhoneInteract / PhoneReject
-            // mappings), while a sustained hold opens the phone UI for
-            // reading texts and contacts. Mirroring the physical button
-            // duration gives both gestures off the same bind.
+            // OpenPhone: tap answers a call, hold opens the phone UI.
             /* 27 OpenPhone           */ KAH('T',       "OpenPhone (T, hold)"),
             /* 28 OpenPerks           */ KA('P',        "OpenPerks (P)"),
             /* 29 OpenCrafting        */ KA('K',        "OpenCrafting (K)"),
             /* 30 Pause               */ KA(VK_ESCAPE,  "Pause (Esc)"),
 
-            // --- Menu navigation -------------------------------------------
             /* 31 MenuConfirm         */ KA(VK_RETURN,  "MenuConfirm (Enter)"),
             /* 32 MenuCancel          */ KA(VK_ESCAPE,  "MenuCancel (Esc)"),
             /* 33 MenuUp              */ KA(VK_UP,      "MenuUp (Up arrow)"),
@@ -363,26 +283,138 @@ namespace gwheel::input_bindings
             /* 36 MenuRight           */ KA(VK_RIGHT,   "MenuRight (Right arrow)"),
         }};
 
+        const char* ActionLabel(int32_t action)
+        {
+            if (action < 0 || action >= kActionCount) return "?";
+            return kDispatch[static_cast<size_t>(action)].label;
+        }
+
+        // ---------------- Parsed bindings -------------------------------------
+        //
+        // Each ActionEntry holds the parsed sources for one action. The user's
+        // raw token string is parsed once at SetActionBinding time so OnTick
+        // doesn't pay the parsing cost on every pump tick (250 Hz).
+        //
+        // Only wheel-button and wheel-pov tokens reach this layer. Axis
+        // tokens are handled by axis_resolver. Keyboard / mouse / gamepad
+        // tokens are skipped: the user is already physically pressing the
+        // key, so re-injecting it would create a feedback loop.
+        //
+        // Multi-source: a single binding string can hold multiple `|`-delimited
+        // tokens (cap 2 from the UI side). All sources OR together for press
+        // detection — pressing either bound paddle fires the action.
+        struct ParsedSource
+        {
+            enum class Kind : uint8_t { WheelButton, WheelPov };
+            Kind     kind  = Kind::WheelButton;
+            uint32_t value = 0;  // button index OR POV degrees
+        };
+
+        struct ActionEntry
+        {
+            int32_t                   action = Action::None;
+            std::vector<ParsedSource> sources;
+        };
+
+        // ---------------- State -----------------------------------------------
+
+        enum class CaptureKind : uint8_t { None, Button, Axis };
+
         struct State
         {
-            std::mutex              mtx;
-            BindingArray            bindings{}; // all-zero = all None
-            const DeviceLayout*     layout = &kG923XboxLayout; // default until SetDeviceLayout
+            std::mutex mtx;
+
+            // Action-keyed bindings, parsed once at update time.
+            std::unordered_map<std::string, ActionEntry> bindings;
 
             // Edge-detection state, owned by the pump thread.
-            uint32_t                prevButtons = 0;
-            DWORD                   prevPov     = 0xFFFFFFFF;
-            bool                    havePrev    = false;
+            uint32_t prevButtons = 0;
+            DWORD    prevPov     = 0xFFFFFFFF;
+            bool     havePrev    = false;
+
+            // Capture mode for the listening UI.
+            CaptureKind captureKind        = CaptureKind::None;
+            uint32_t    captureButtonsBase = 0;
+            DWORD       capturePovBase     = 0xFFFFFFFF;
+            float       captureAxesBase[wheel::Axis_kCount] = {0};
+            std::string captured;
+
+            // Axis-capture leadership tracking. Picking the first axis to
+            // cross threshold loses to noise: a foot resting on the throttle
+            // pedal can swing lY by 0.5 in a single frame and beat any
+            // intentional wheel rotation. Instead we track the cumulative
+            // max |delta| per axis across the entire capture, name the axis
+            // with the highest cumulative max as the "leader," and only
+            // commit once that leader has held its lead for a settling
+            // window (so a brief blip doesn't lock in the wrong choice).
+            float       captureAxisMax[wheel::Axis_kCount] = {0};
+            int         captureLeader        = -1;  // -1 = no leader yet
+            uint64_t    captureTickCount     = 0;
+            uint64_t    captureLeaderSince   = 0;   // tick when leader took over
         };
 
         State& S() { static State s; return s; }
 
-        // Log the executable name of the window currently receiving keyboard
-        // input. SendInput pushes events to whichever window has focus —
-        // after alt-tab, focus transitions can briefly land on another app
-        // (overlay, IDE, browser) and our dispatches go there instead of
-        // CP2077. Called on every Dispatch rising-edge so a log diff makes
-        // the tab-out / focus issue visible.
+        // ---------------- Token parser ----------------------------------------
+        //
+        // Tagged tokens recognised here:
+        //   "wheel:N"       — DInput button index N (decimal)
+        //   "wheel-pov:DEG" — POV[0] direction in raw degrees (0/9000/18000/27000)
+        // Anything else (axis, keyboard, mouse, gamepad, empty, malformed)
+        // is silently ignored.
+        bool ParseToken(const char* data, size_t len, ParsedSource& out)
+        {
+            constexpr const char btnPrefix[] = "wheel:";
+            constexpr const char povPrefix[] = "wheel-pov:";
+            constexpr size_t btnLen = sizeof(btnPrefix) - 1;
+            constexpr size_t povLen = sizeof(povPrefix) - 1;
+
+            if (len > btnLen && std::memcmp(data, btnPrefix, btnLen) == 0
+                // Disambiguate from "wheel-axis:" / "wheel-pov:": the next
+                // char after "wheel:" must be a digit.
+                && std::isdigit(static_cast<unsigned char>(data[btnLen])))
+            {
+                std::string s(data + btnLen, len - btnLen);
+                char* endp = nullptr;
+                long v = std::strtol(s.c_str(), &endp, 10);
+                if (endp == s.c_str()) return false;
+                if (v < 0 || v > 31) return false;
+                out.kind = ParsedSource::Kind::WheelButton;
+                out.value = static_cast<uint32_t>(v);
+                return true;
+            }
+
+            if (len > povLen && std::memcmp(data, povPrefix, povLen) == 0)
+            {
+                std::string s(data + povLen, len - povLen);
+                char* endp = nullptr;
+                long v = std::strtol(s.c_str(), &endp, 10);
+                if (endp == s.c_str()) return false;
+                out.kind = ParsedSource::Kind::WheelPov;
+                out.value = static_cast<uint32_t>(v);
+                return true;
+            }
+
+            return false;
+        }
+
+        // Walk pipe-delimited tokens. Empty tokens (consecutive pipes,
+        // leading/trailing) are skipped.
+        template <typename F>
+        void ForEachToken(const std::string& s, F&& fn)
+        {
+            size_t i = 0;
+            while (i < s.size())
+            {
+                size_t j = s.find('|', i);
+                if (j == std::string::npos) j = s.size();
+                if (j > i) fn(s.data() + i, j - i);
+                i = j + 1;
+            }
+        }
+
+        // ---------------- Dispatch -------------------------------------------
+
         void LogForeground(const char* label)
         {
             HWND hwnd = GetForegroundWindow();
@@ -410,9 +442,6 @@ namespace gwheel::input_bindings
         void FireInput(const INPUT& in, const DispatchEntry& e, bool down)
         {
             INPUT local = in;
-            // Tag every event with kExtraInfoTag so the LL keyboard hook
-            // can distinguish our own injections from G HUB's and pass
-            // ours through unmodified.
             if (local.type == INPUT_KEYBOARD)
                 local.ki.dwExtraInfo = kbd_hook::kExtraInfoTag;
             else if (local.type == INPUT_MOUSE)
@@ -425,16 +454,10 @@ namespace gwheel::input_bindings
             }
         }
 
-        // RTTI-resolve `vehicleBaseObject::<methodName>` once and cache the
-        // CBaseFunction*. The method names referenced by the dispatch table
-        // are static strings so the cache is keyed by pointer identity.
-        // Returns nullptr if the lookup fails (logged once per name).
         RED4ext::CBaseFunction* ResolveVehicleMethod(const char* methodName)
         {
             if (!methodName) return nullptr;
             static std::mutex sMtx;
-            // Tiny linear cache — there are only a handful of direct-method
-            // actions, and a vector or map would be overkill.
             struct Cached { const char* key; RED4ext::CBaseFunction* fn; bool resolved; };
             static std::array<Cached, 16> sCache{};
             std::lock_guard<std::mutex> lk(sMtx);
@@ -465,10 +488,6 @@ namespace gwheel::input_bindings
             return nullptr;
         }
 
-        // Invoke the cached vehicleBaseObject method on the player's vehicle.
-        // Returns true iff the call dispatched. False on missing vehicle,
-        // missing method, or RTTI execution failure (each is logged on the
-        // rising edge by the caller so we don't double-log here).
         bool FireVehicleNative(const DispatchEntry& e)
         {
             void* vehicle = vehicle_hook::GetPlayerVehicle();
@@ -490,7 +509,6 @@ namespace gwheel::input_bindings
             return ok;
         }
 
-        // Fire a single DOWN or UP event for an action, given the entry.
         void FireOne(const DispatchEntry& e, bool down)
         {
             INPUT in{};
@@ -509,7 +527,6 @@ namespace gwheel::input_bindings
                 FireInput(in, e, down);
                 break;
             case DispatchKind::MouseWheel:
-                // Wheel is a pulse event regardless of mode; fire only on DOWN.
                 if (down)
                 {
                     in.type = INPUT_MOUSE;
@@ -519,9 +536,6 @@ namespace gwheel::input_bindings
                 }
                 break;
             case DispatchKind::VehicleNative:
-                // Pulse: fire only on rising edge. Direct-method calls don't
-                // have a "release" semantic — the vehicle method runs once
-                // and the game handles the state transition internally.
                 if (down) FireVehicleNative(e);
                 break;
             case DispatchKind::None:
@@ -530,252 +544,607 @@ namespace gwheel::input_bindings
             }
         }
 
-        void Dispatch(int32_t action, bool rising)
+        // Tap key-ups waiting to be sent. A tap holds its key for kTapHold so
+        // CP2077's per-tick input sampler sees it down for at least one
+        // frame. The UP is queued here and sent by ServicePendingTaps on a
+        // later pump tick, so a tap never blocks the pump thread (and with
+        // it steer / throttle / brake publishing).
+        constexpr auto kTapHold = std::chrono::milliseconds(30);
+
+        struct PendingTap
+        {
+            int32_t                               action;
+            std::chrono::steady_clock::time_point due;
+        };
+
+        std::mutex              g_tapMtx;
+        std::vector<PendingTap> g_pendingTaps;
+
+        // Serializes everything that sends input or changes what is held:
+        // the pump's OnTick / ServicePendingTaps / ReleaseHeld and the game
+        // thread's SetActionBinding / Clear. Without it a rebind could run
+        // between a hold's DOWN and its bookkeeping, find nothing to release,
+        // and leave the key down for good. Taken first, before any other
+        // lock in this file; nothing that holds it waits on config's writer.
+        std::mutex g_dispatchMtx;
+
+        // Several actions emit the same output (Headlights and CallVehicle
+        // both press V; Pause and MenuCancel both press Esc). Each output
+        // key / mouse button is reference-counted across the actions holding
+        // it, so the DOWN goes out when the first one presses and the UP
+        // when the last one lets go: one action can't release a key another
+        // is still holding. Guarded by g_dispatchMtx.
+        std::unordered_map<uint32_t, int> g_outputOwners;
+
+        // 0 = not a sustained output (wheel notches, direct method calls).
+        uint32_t OutputKey(const DispatchEntry& e)
+        {
+            switch (e.kind)
+            {
+            case DispatchKind::Keyboard:    return 0x10000u | e.vk;
+            case DispatchKind::MouseButton: return 0x20000u | e.mouseDownFlag;
+            default:                        return 0;
+            }
+        }
+
+        void Press(const DispatchEntry& e)
+        {
+            const uint32_t key = OutputKey(e);
+            if (key == 0 || ++g_outputOwners[key] == 1)
+                FireOne(e, true);
+        }
+
+        void Release(const DispatchEntry& e)
+        {
+            const uint32_t key = OutputKey(e);
+            if (key == 0) { FireOne(e, false); return; }
+            auto it = g_outputOwners.find(key);
+            if (it == g_outputOwners.end()) return;   // nothing of ours is down
+            if (--it->second > 0) return;             // another action still holds it
+            g_outputOwners.erase(it);
+            FireOne(e, false);
+        }
+
+        // Hold actions whose DOWN has been sent and whose UP has not. Every
+        // DOWN gets exactly one UP: when the button is let go, or earlier
+        // when the context that allowed the press goes away (V leaves the
+        // vehicle, the game loses focus, the wheel disconnects, input is
+        // disabled, bindings change, capture starts, the plugin unloads).
+        // Without this, a release that arrived after such a change was
+        // dropped and the game saw the key held down indefinitely.
+        std::mutex           g_heldMtx;
+        std::vector<int32_t> g_heldActions;
+
+        void MarkHeld(int32_t action)
+        {
+            std::lock_guard lk(g_heldMtx);
+            if (std::find(g_heldActions.begin(), g_heldActions.end(), action) == g_heldActions.end())
+                g_heldActions.push_back(action);
+        }
+
+        // Removes `action` from the held set; true if it was there.
+        bool TakeHeld(int32_t action)
+        {
+            std::lock_guard lk(g_heldMtx);
+            auto it = std::find(g_heldActions.begin(), g_heldActions.end(), action);
+            if (it == g_heldActions.end()) return false;
+            g_heldActions.erase(it);
+            return true;
+        }
+
+        // Sends the UP for every held action matching `pred`. The events go
+        // out after the lock is released.
+        template <typename Pred>
+        void ReleaseHeldWhere(Pred&& pred, const char* why)
+        {
+            std::vector<int32_t> released;
+            {
+                std::lock_guard lk(g_heldMtx);
+                for (auto it = g_heldActions.begin(); it != g_heldActions.end();)
+                {
+                    if (pred(*it)) { released.push_back(*it); it = g_heldActions.erase(it); }
+                    else           { ++it; }
+                }
+            }
+            for (int32_t a : released)
+            {
+                Release(kDispatch[static_cast<size_t>(a)]);
+                log::InfoF("[gwheel:bind] released held %s (%s)", ActionLabel(a), why);
+            }
+        }
+
+        void ReleaseAllHeld(const char* why)
+        {
+            ReleaseHeldWhere([](int32_t) { return true; }, why);
+        }
+
+        // SendInput goes to whichever window has focus. Wheel presses are
+        // only sent while one of the game's own windows is in front, so
+        // alt-tabbing away doesn't type or click into another application.
+        bool GameHasFocus()
+        {
+            HWND fg = GetForegroundWindow();
+            if (!fg) return false;
+            DWORD pid = 0;
+            GetWindowThreadProcessId(fg, &pid);
+            return pid == GetCurrentProcessId();
+        }
+
+        void Dispatch(int32_t action, bool rising, bool gameFocused)
         {
             if (action <= 0 || action >= kActionCount) return;
             const auto& e = kDispatch[static_cast<size_t>(action)];
             if (e.kind == DispatchKind::None) return;
 
-            // On-foot suppression for vehicle-centric actions. CP2077 assigns
-            // the same keyboard keys different meanings on foot (V=summon,
-            // F=interact, Space=jump, etc.), so dispatching a wheel-bound
-            // Headlights / Handbrake / Horn while V is walking produces
-            // unintended side-effects. Log only on the rising edge so the
-            // suppression is visible but not spammy.
+            // Releases are never suppressed: a held action always gets its
+            // UP, whatever changed since the DOWN. Taps release themselves
+            // (ServicePendingTaps), so a tap button's release does nothing.
+            if (!rising)
+            {
+                if (e.mode == DispatchMode::Hold && TakeHeld(action))
+                {
+                    Release(e);
+                    log::InfoF("[gwheel:bind] dispatch action=%d %s UP", action, e.label);
+                }
+                return;
+            }
+
+            if (!gameFocused)
+            {
+                log::DebugF("[gwheel:bind] game not focused: %s suppressed", e.label);
+                return;
+            }
+
             if (e.scope == ActionScope::VehicleOnly && !sources::InVehicle())
             {
-                if (rising)
-                    log::DebugF("[gwheel:bind] on-foot: %s suppressed", e.label);
+                log::DebugF("[gwheel:bind] on-foot: %s suppressed", e.label);
                 return;
             }
 
             if (e.mode == DispatchMode::Tap)
             {
-                // Tap: fire DOWN, wait ~2 game frames, fire UP. The gap is
-                // essential — CP2077's in-vehicle input sampler polls key
-                // state per tick, and DOWN+UP sent back-to-back within the
-                // same poll window can be collapsed so the game never sees
-                // the key as held. 30 ms covers a 60 Hz frame with margin
-                // and is still well under any human-perceptible latency.
-                // The pump thread stalls for this interval once per tap,
-                // which is fine — taps are user-initiated and rare.
-                if (!rising) return;
+                // DOWN now; the UP goes out kTapHold later via
+                // ServicePendingTaps. A re-press while the previous tap is
+                // still held releases it first so DOWN/UP stay paired.
                 LogForeground(e.label);
-                FireOne(e, true);
-                std::this_thread::sleep_for(std::chrono::milliseconds(30));
-                FireOne(e, false);
+                {
+                    std::lock_guard lk(g_tapMtx);
+                    for (auto it = g_pendingTaps.begin(); it != g_pendingTaps.end(); ++it)
+                    {
+                        if (it->action == action)
+                        {
+                            Release(e);
+                            g_pendingTaps.erase(it);
+                            break;
+                        }
+                    }
+                    Press(e);
+                    g_pendingTaps.push_back({ action, std::chrono::steady_clock::now() + kTapHold });
+                }
                 log::InfoF("[gwheel:bind] dispatch action=%d %s TAP", action, e.label);
             }
             else
             {
-                // Hold: mirror the physical state.
-                if (rising) LogForeground(e.label);
-                FireOne(e, rising);
-                log::InfoF("[gwheel:bind] dispatch action=%d %s %s",
-                           action, e.label, rising ? "DOWN" : "UP");
+                LogForeground(e.label);
+                MarkHeld(action);
+                Press(e);
+                log::InfoF("[gwheel:bind] dispatch action=%d %s DOWN", action, e.label);
             }
         }
 
-        bool IsPhysicallyPressed(const DeviceLayout& layout, PhysicalInput p,
-                                 uint32_t buttons, DWORD pov)
+        bool IsSourceActive(const ParsedSource& src, uint32_t buttons, DWORD pov)
         {
-            const auto& m = layout[p];
-            switch (m.source)
+            switch (src.kind)
             {
-            case Source::Button:
-                return (buttons & (1u << m.value)) != 0;
-            case Source::PovDirection:
-                return pov == m.value;
-            case Source::Unmapped:
-            default:
-                return false;
+            case ParsedSource::Kind::WheelButton:
+                return (buttons & (1u << src.value)) != 0;
+            case ParsedSource::Kind::WheelPov:
+                return pov == src.value;
             }
+            return false;
         }
 
-        // Names for PhysicalInput slots, parallel to the enum. Used only for
-        // logging so the diagnostic trace reads as "Plus" / "ScrollCW" rather
-        // than "input 14" / "input 17".
-        constexpr std::array<const char*, kCount> kInputNames = {{
-            "PaddleLeft",
-            "PaddleRight",
-            "DpadUp",
-            "DpadDown",
-            "DpadLeft",
-            "DpadRight",
-            "ButtonA",
-            "ButtonB",
-            "ButtonX",
-            "ButtonY",
-            "Start",
-            "Select",
-            "LSB",
-            "RSB",
-            "Plus",
-            "Minus",
-            "ScrollClick",
-            "ScrollCW",
-            "ScrollCCW",
-            "Xbox",
-        }};
-
-        const char* InputName(int32_t id)
+        bool AnySourceActive(const std::vector<ParsedSource>& sources,
+                             uint32_t buttons, DWORD pov)
         {
-            if (id < 0 || id >= kCount) return "?";
-            return kInputNames[static_cast<size_t>(id)];
-        }
-
-        const char* ActionLabel(int32_t action)
-        {
-            if (action < 0 || action >= kActionCount) return "?";
-            return kDispatch[static_cast<size_t>(action)].label;
+            for (const auto& s : sources)
+                if (IsSourceActive(s, buttons, pov)) return true;
+            return false;
         }
     }
 
-    void SetDeviceLayout(const char* friendlyProductName)
+    // ---------------- Public API ------------------------------------------
+
+    void SetActionBinding(const std::string& actionName, const std::string& value)
     {
-        auto& st = S();
-        const DeviceEntry* match = nullptr;
-        for (const auto& entry : kDeviceRegistry)
+        if (actionName.empty()) return;
+        const int32_t action = ActionFromName(actionName);
+        if (action == Action::None)
         {
-            if (ContainsCaseInsensitive(friendlyProductName, entry.nameSubstring))
-            {
-                match = &entry;
-                break;
-            }
+            // Action names that don't appear in kActionNames are still valid
+            // axis-only keys (SteerAxis / ThrottleAxis / BrakeAxis) — those
+            // route through axis_resolver, not here. Silently ignore so the
+            // shared SetActionBinding native can fan out to both modules.
+            return;
         }
 
+        // A rebind would leave the old source's release unmatched; let go
+        // of the action first. The dispatch lock keeps a press of the old
+        // binding from landing between this release and the swap below.
+        std::lock_guard dispatch(g_dispatchMtx);
+        ReleaseHeldWhere([action](int32_t a) { return a == action; }, "binding changed");
+
+        auto& st = S();
         std::lock_guard lk(st.mtx);
-        if (match)
+
+        if (value.empty())
         {
-            st.layout = match->layout;
-            if (match->verified)
-            {
-                log::InfoF("[gwheel:bind] device layout = %s (verified)", match->label);
-            }
-            else
-            {
-                log::WarnF("[gwheel:bind] device layout = %s (UNVERIFIED - bindings may be "
-                           "wrong; run tools/input_probe.exe to confirm indices)", match->label);
-            }
+            st.bindings.erase(actionName);
+            return;
+        }
+
+        ActionEntry entry;
+        entry.action = action;
+
+        // Walk all `|`-delimited tokens. Wheel-button / wheel-pov tokens
+        // become ParsedSource entries; axis / keyboard tokens are skipped
+        // (handled elsewhere or not handled at all).
+        ForEachToken(value, [&](const char* tok, size_t len) {
+            ParsedSource src;
+            if (ParseToken(tok, len, src))
+                entry.sources.push_back(src);
+        });
+
+        st.bindings[actionName] = entry;
+
+        if (!entry.sources.empty())
+        {
+            log::InfoF("[gwheel:bind] %s -> %zu source(s) (%s)",
+                       actionName.c_str(), entry.sources.size(),
+                       ActionLabel(action));
         }
         else
         {
-            st.layout = &kG923XboxLayout;
-            log::WarnF("[gwheel:bind] unknown wheel \"%s\"; falling back to G923 Xbox "
-                       "layout. Run tools/input_probe.exe to confirm indices.",
-                       friendlyProductName ? friendlyProductName : "(null)");
+            log::DebugF("[gwheel:bind] %s -> '%s' (no wheel source; ignored at button layer)",
+                        actionName.c_str(), value.c_str());
         }
     }
 
-    void ReplaceAll(const BindingArray& bindings)
+    void Clear()
     {
-        auto& st = S();
-        {
-            std::lock_guard lk(st.mtx);
-            st.bindings = bindings;
-        }
-        // Dump the full binding map on any wholesale replacement so the log
-        // shows the user's current assignments after a config-load /
-        // settings-push. Makes it trivial to confirm what the UI thinks the
-        // binding is vs what the plugin actually received.
-        log::Info("[gwheel:bind] binding map (Input -> Action):");
-        for (int32_t i = 0; i < kCount; ++i)
-        {
-            const int32_t a = bindings[static_cast<size_t>(i)];
-            log::InfoF("[gwheel:bind]   %-12s -> %d %s",
-                       InputName(i), a, ActionLabel(a));
-        }
-    }
-
-    void Set(int32_t inputId, int32_t action)
-    {
-        if (inputId < 0 || inputId >= kCount) return;
-        if (action  < 0 || action  >= kActionCount) action = 0;
-        auto& st = S();
-        {
-            std::lock_guard lk(st.mtx);
-            st.bindings[static_cast<size_t>(inputId)] = action;
-        }
-        log::InfoF("[gwheel:bind] set %-12s -> %d %s",
-                   InputName(inputId), action, ActionLabel(action));
-    }
-
-    int32_t Get(int32_t inputId)
-    {
-        if (inputId < 0 || inputId >= kCount) return 0;
+        std::lock_guard dispatch(g_dispatchMtx);
+        ReleaseAllHeld("bindings cleared");
         auto& st = S();
         std::lock_guard lk(st.mtx);
-        return st.bindings[static_cast<size_t>(inputId)];
+        st.bindings.clear();
     }
 
+    void ReleaseHeld()
+    {
+        std::lock_guard dispatch(g_dispatchMtx);
+        ReleaseAllHeld("input stopped");
+    }
+
+    // Synthesize a VK_F24 keypress to wake the listening UI when capture
+    // completes. The redscript-side OnKeyBindingEvent handler recognizes
+    // n"IK_F24" while listening, drains the captured value via the input
+    // provider, commits it, and exits listening.
+    //
+    // Why this and not a DelayCallback poll loop: CP2077's in-game pause
+    // menu freezes the DelaySystem dispatcher entirely, even with
+    // isAffectedByTimeDilation=false. Keyboard events, by contrast, do
+    // dispatch during pause (Esc / arrow keys / Enter all work). So a
+    // synthetic keypress is the most reliable signal channel from C++
+    // (running on its own pump thread) into redscript.
+    //
+    // Tagged with kbd_hook::kExtraInfoTag so the LL keyboard hook lets
+    // it pass through (the hook would otherwise filter our own SendInput
+    // events the same way it filters G HUB's).
+    void FireCaptureWakeup()
+    {
+        INPUT ev[2] = {};
+        ev[0].type           = INPUT_KEYBOARD;
+        ev[0].ki.wVk         = VK_F24;
+        ev[0].ki.dwExtraInfo = kbd_hook::kExtraInfoTag;
+        ev[1].type           = INPUT_KEYBOARD;
+        ev[1].ki.wVk         = VK_F24;
+        ev[1].ki.dwFlags     = KEYEVENTF_KEYUP;
+        ev[1].ki.dwExtraInfo = kbd_hook::kExtraInfoTag;
+        SendInput(2, ev, sizeof(INPUT));
+    }
 
     void OnTick(const sources::Frame& frame)
     {
+        std::lock_guard dispatch(g_dispatchMtx);
         auto& st = S();
-        if (!config::Current().input.enabled) return;
 
         const uint32_t buttons = frame.digital.buttons;
-        // digital.pov is the DInput POV raw in the low 16 bits. 0xFFFF = center.
-        // We compare directly against direction values (0, 9000, 18000, 27000)
-        // which never collide with 0xFFFF.
         const DWORD    pov     = static_cast<DWORD>(frame.digital.pov);
 
-        if (!st.havePrev)
+        // Log every raw button / D-pad press with the token it binds as, so
+        // the button names in the settings menu can be checked against what
+        // the wheel actually reports. Pump thread only; presses are rare.
         {
+            static uint32_t s_logPrevButtons = 0;
+            static DWORD    s_logPrevPov     = 0xFFFFFFFF;
+            const uint32_t pressed = buttons & ~s_logPrevButtons;
+            for (int i = 0; i < 32; ++i)
+                if (pressed & (1u << i))
+                    log::InfoF("[gwheel:button] wheel:%d pressed", i);
+            if (pov != s_logPrevPov && LOWORD(pov) != 0xFFFF)
+                log::InfoF("[gwheel:button] wheel-pov:%lu pressed", static_cast<unsigned long>(pov));
+            s_logPrevButtons = buttons;
+            s_logPrevPov     = pov;
+        }
+
+        // Tracks whether THIS tick filled the captured slot (false→true
+        // transition) and whether capture is still armed. Both are set
+        // inside the lock so we can release the mutex before SendInput.
+        bool captureWokeThisTick = false;
+        bool captureStillArmed   = false;
+
+        // Capture-mode handling runs ahead of the action dispatcher and
+        // runs even when input is globally disabled, so the bind UI can
+        // capture inputs while config.input.enabled is false.
+        {
+            std::lock_guard lk(st.mtx);
+            const bool wasCapturedBefore = !st.captured.empty();
+            if (st.captureKind != CaptureKind::None && st.captured.empty())
+            {
+                if (st.captureKind == CaptureKind::Button)
+                {
+                    const uint32_t rising = buttons & ~st.captureButtonsBase;
+                    if (rising != 0)
+                    {
+                        for (int i = 0; i < 32; ++i)
+                        {
+                            if (rising & (1u << i))
+                            {
+                                char buf[32];
+                                std::snprintf(buf, sizeof(buf), "wheel:%d", i);
+                                st.captured = buf;
+                                break;
+                            }
+                        }
+                    }
+                    if (st.captured.empty() &&
+                        pov != 0xFFFF && pov != 0xFFFFFFFF &&
+                        pov != st.capturePovBase)
+                    {
+                        char buf[32];
+                        std::snprintf(buf, sizeof(buf), "wheel-pov:%lu", static_cast<unsigned long>(pov));
+                        st.captured = buf;
+                    }
+                }
+                else if (st.captureKind == CaptureKind::Axis)
+                {
+                    // Tunable: how far an axis must move from its baseline
+                    // to even be considered. 0.25 is comfortable for both
+                    // a half-pressed pedal and a ~50° turn on a 180° wheel.
+                    constexpr float    kAxisDeviationThreshold = 0.25f;
+                    // Tunable: how many pump ticks (~250 Hz) the leader must
+                    // hold its lead before we commit. ~50 ticks = 200 ms.
+                    // Long enough to outlast a transient blip, short enough
+                    // not to feel laggy.
+                    constexpr uint64_t kLeaderStabilityTicks   = 50;
+
+                    const wheel::Snapshot snap = wheel::CurrentSnapshot();
+                    ++st.captureTickCount;
+
+                    // Update cumulative max |delta| per axis. Find the
+                    // current leader (axis with the largest cumulative max
+                    // that is also above threshold).
+                    int   leaderIdx = -1;
+                    float leaderMax = 0.f;
+                    for (int i = 0; i < wheel::Axis_kCount; ++i)
+                    {
+                        const float d = std::fabs(snap.axes[i] - st.captureAxesBase[i]);
+                        if (d > st.captureAxisMax[i]) st.captureAxisMax[i] = d;
+                        if (st.captureAxisMax[i] >= kAxisDeviationThreshold &&
+                            st.captureAxisMax[i] > leaderMax)
+                        {
+                            leaderIdx = i;
+                            leaderMax = st.captureAxisMax[i];
+                        }
+                    }
+
+                    // Reset the stability counter every time a new axis
+                    // takes the lead. The user is still moving things; wait
+                    // for the dust to settle.
+                    if (leaderIdx != st.captureLeader)
+                    {
+                        st.captureLeader      = leaderIdx;
+                        st.captureLeaderSince = st.captureTickCount;
+                    }
+
+                    if (st.captureLeader >= 0 &&
+                        st.captureTickCount - st.captureLeaderSince >= kLeaderStabilityTicks)
+                    {
+                        char buf[64];
+                        std::snprintf(buf, sizeof(buf), "wheel-axis:%s",
+                                      wheel::AxisName(static_cast<wheel::Axis>(st.captureLeader)));
+                        st.captured = buf;
+                        log::InfoF("[gwheel:capture] axis caught: %s (maxDelta=%.2f, stable for %llu ticks)",
+                                   buf, leaderMax,
+                                   static_cast<unsigned long long>(
+                                       st.captureTickCount - st.captureLeaderSince));
+                    }
+                }
+
+                if (!st.captured.empty() && st.captureKind == CaptureKind::Button)
+                {
+                    log::InfoF("[gwheel:capture] button caught: %s", st.captured.c_str());
+                }
+            }
+            captureWokeThisTick = !wasCapturedBefore && !st.captured.empty();
+            captureStillArmed   = (st.captureKind != CaptureKind::None);
+
+            if (captureStillArmed)
+            {
+                // Update edge-prev so the dispatcher resumes cleanly when
+                // capture ends (stale prev would fire spurious edges on
+                // the first tick after capture release).
+                st.prevButtons = buttons;
+                st.prevPov     = pov;
+                st.havePrev    = true;
+            }
+        }
+
+        // Mutex released. Fire the wake-up keypress outside the lock so we
+        // never hold the mutex across SendInput (which can block briefly).
+        if (captureWokeThisTick)
+        {
+            FireCaptureWakeup();
+        }
+
+        // If we were inside capture mode, the dispatcher must not run
+        // (suppress wheel-button → game-action dispatch during binding).
+        if (captureStillArmed)
+        {
+            ReleaseAllHeld("bind capture started");
+            return;
+        }
+
+        if (!config::Current().input.enabled)
+        {
+            ReleaseAllHeld("wheel input disabled");
+            // Keep the baseline current so a button pressed while input was
+            // off doesn't count as a new press when input comes back on.
+            std::lock_guard lk(st.mtx);
             st.prevButtons = buttons;
             st.prevPov     = pov;
             st.havePrev    = true;
             return;
         }
 
-        // Every PhysicalInput falls through to the user's Mod Settings
-        // binding. An earlier version hard-overrode the D-pad and A to
-        // MenuUp/Down/Left/Right/MenuConfirm on the theory that arrow
-        // keys + Enter were silent in CP2077 gameplay, but CP2077 actually
-        // binds the arrow keys as secondary vehicle controls (Up/Down =
-        // accelerate/decelerate, Left/Right = steer), so the override
-        // drove the car whenever the user pressed the D-pad — even if they
-        // had set the binding to None. The defaults for D-pad / A are now
-        // declared in gwheel_settings.reds as Menu* actions, so menu-nav
-        // out of the box is preserved while "None" truly means None.
+        // Context checks, once per tick. Losing focus lets go of every held
+        // action; leaving the vehicle lets go of the vehicle-only ones (an
+        // on-foot action such as holding the phone key keeps going).
+        const bool gameFocused = GameHasFocus();
+        if (!gameFocused)
+            ReleaseAllHeld("game lost focus");
+        if (!sources::InVehicle())
+            ReleaseHeldWhere([](int32_t a) {
+                return kDispatch[static_cast<size_t>(a)].scope == ActionScope::VehicleOnly;
+            }, "left the vehicle");
 
-        // Snapshot the bindings and layout once per tick to avoid holding
-        // the lock across SendInput calls.
-        BindingArray bindings;
-        const DeviceLayout* layout;
+        if (!st.havePrev)
         {
             std::lock_guard lk(st.mtx);
-            bindings = st.bindings;
-            layout   = st.layout;
+            st.prevButtons = buttons;
+            st.prevPov     = pov;
+            st.havePrev    = true;
+            return;
         }
 
-        for (int32_t i = 0; i < kCount; ++i)
+        // Snapshot the bindings so we don't hold the lock across SendInput.
+        // The map is small enough that copying once per tick is cheap.
+        std::vector<std::pair<std::string, ActionEntry>> snapshot;
+        uint32_t prevButtons;
+        DWORD    prevPov;
         {
-            const PhysicalInput p = static_cast<PhysicalInput>(i);
-            const bool pressed    = IsPhysicallyPressed(*layout, p, buttons, pov);
-            const bool wasPressed = IsPhysicallyPressed(*layout, p, st.prevButtons, st.prevPov);
+            std::lock_guard lk(st.mtx);
+            snapshot.reserve(st.bindings.size());
+            for (const auto& kv : st.bindings) snapshot.push_back(kv);
+            prevButtons = st.prevButtons;
+            prevPov     = st.prevPov;
+        }
+
+        for (const auto& [name, entry] : snapshot)
+        {
+            if (entry.sources.empty()) continue;
+            const bool pressed    = AnySourceActive(entry.sources, buttons,     pov);
+            const bool wasPressed = AnySourceActive(entry.sources, prevButtons, prevPov);
             if (pressed != wasPressed)
             {
-                const int32_t action = bindings[static_cast<size_t>(i)];
-
-                // Edge log: always fires on any physical state change, even
-                // when the binding is None. Lets a "press every button" test
-                // prove what the plugin saw physically vs what it would
-                // dispatch, independent of whether the game reacts.
-                const auto& m = (*layout)[i];
-                const char* srcKind = (m.source == Source::Button)       ? "btn"
-                                    : (m.source == Source::PovDirection) ? "pov"
-                                                                         : "unmapped";
-                log::InfoF("[gwheel:edge] %-12s (%s %u) %s -> action=%d %s",
-                           InputName(i), srcKind, m.value,
+                log::InfoF("[gwheel:edge] %s (%zu src) %s -> action=%d %s",
+                           name.c_str(), entry.sources.size(),
                            pressed ? "PRESS" : "RELEASE",
-                           action, ActionLabel(action));
-
-                Dispatch(action, pressed);
+                           entry.action, ActionLabel(entry.action));
+                Dispatch(entry.action, pressed, gameFocused);
             }
         }
 
-        st.prevButtons = buttons;
-        st.prevPov     = pov;
+        {
+            std::lock_guard lk(st.mtx);
+            st.prevButtons = buttons;
+            st.prevPov     = pov;
+        }
+    }
+
+    void ServicePendingTaps(bool releaseAll)
+    {
+        const auto now = std::chrono::steady_clock::now();
+        std::lock_guard dispatch(g_dispatchMtx);
+        std::lock_guard lk(g_tapMtx);
+        for (auto it = g_pendingTaps.begin(); it != g_pendingTaps.end();)
+        {
+            if (releaseAll || now >= it->due)
+            {
+                Release(kDispatch[static_cast<size_t>(it->action)]);
+                it = g_pendingTaps.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+    }
+
+    void BeginCapture(const char* typeHint)
+    {
+        auto& st = S();
+        const wheel::Snapshot snap = wheel::CurrentSnapshot();
+        std::lock_guard lk(st.mtx);
+        st.captured.clear();
+        if (typeHint && std::strcmp(typeHint, "axis") == 0)
+        {
+            st.captureKind = CaptureKind::Axis;
+        }
+        else
+        {
+            st.captureKind = CaptureKind::Button;
+        }
+        st.captureButtonsBase = snap.buttons;
+        st.capturePovBase     = snap.pov;
+        for (int i = 0; i < wheel::Axis_kCount; ++i)
+        {
+            st.captureAxesBase[i] = snap.axes[i];
+            st.captureAxisMax[i]  = 0.f;
+        }
+        st.captureLeader      = -1;
+        st.captureTickCount   = 0;
+        st.captureLeaderSince = 0;
+        log::InfoF("[gwheel:capture] BeginCapture(%s)",
+                   st.captureKind == CaptureKind::Axis ? "axis" : "button");
+    }
+
+    std::string PollLatestCapture()
+    {
+        auto& st = S();
+        std::lock_guard lk(st.mtx);
+        if (st.captured.empty()) return {};
+        std::string out = st.captured;
+        st.captured.clear();
+        st.captureKind = CaptureKind::None;
+        log::InfoF("[gwheel:capture] PollLatestCapture -> %s", out.c_str());
+        return out;
+    }
+
+    void CancelCapture()
+    {
+        auto& st = S();
+        std::lock_guard lk(st.mtx);
+        if (st.captureKind == CaptureKind::None && st.captured.empty()) return;
+        st.captureKind = CaptureKind::None;
+        st.captured.clear();
+        log::Info("[gwheel:capture] CancelCapture");
+    }
+
+    bool IsCapturing()
+    {
+        auto& st = S();
+        std::lock_guard lk(st.mtx);
+        return st.captureKind != CaptureKind::None;
     }
 }

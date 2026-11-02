@@ -1,12 +1,59 @@
 # Changelog
 
+## 2.31.2 — 2026-05-30
+
+### Stability
+
+- Fixed an audio session re-registration leak that grew the process's memory and per-session callback list without bound. The 250 ms poll that re-attaches Game Bar / Volume Mixer listeners deduped by `IAudioSessionControl*` interface pointer, but the COM enumerator hands back a fresh pointer per `GetSession()` call for the same logical session, so the dedup never matched. Every poll re-registered the listener and re-pushed the session. Symptom on long city drives: escalating hitches, eventual crash. Now deduped by `IAudioSessionControl2::GetSessionInstanceIdentifier`, the stable per-session string.
+
+### Logging
+
+- Both Logitech range-readback APIs are now logged side-by-side at bind time so a corrupt G HUB IPC layer is visible at a glance: `range readback at bind: SDK=N G HUB properties=M (divergence or FAILED on either side suggests a corrupt G HUB install)`.
+- Range changes log the resulting FFB scale: `operating range (G HUB): 360 -> 180 deg (FFB scale: 0.50 -> 1.00)`.
+- The active rangeScale logs once each time it crosses to a new bucket: `FFB range-scale active: 1.00 (range=180 deg)`. No per-frame spam.
+- Toggling debug logging in Mod Settings emits an info-level confirmation so users can verify in the log file that the checkbox actually propagated.
+
+### Documentation
+
+- Troubleshooting now covers the "G HUB operating-range slider doesn't seem to affect anything" symptom and how to confirm it from the log file.
+
+## 2.31.1 — 2026-05-03
+
+### Bindings UX
+
+- Every wheel-button binding is now a press-to-bind slot wired through Mod Settings' new `InputBinding` primitive. Each slot accepts two bindings (dual-keybinding pair widget), so two wheel buttons can drive the same in-game action.
+- Bindings are action-keyed: settings list each in-game action ("Horn", "Open map", "Shoot primary"...) and you assign wheel buttons to it, instead of choosing an action per physical button.
+- Defaults are intentionally empty. New users bind from scratch; the `Steering & pedals` section is the first thing to set up. The previous D-pad-to-Menu defaults are gone.
+- New categories: Steering & pedals, Driving, Camera, Combat, Weapons, Radio, Gameplay, Menus, Menu navigation. The old single Button bindings / Lower-cluster bindings sections are retired.
+
+### Wheel input
+
+- Steering deadzone (0-15%) filters small wheel-center jitter so the car doesn't drift when your hands are off the wheel.
+- Response curve: Default (linear), Subdued (relaxed near center), Sharp (tight near center).
+- Invert steering: reverse the wheel's steering direction for inverted-mount setups. FFB follows automatically.
+- `Treat clutch as brake` is removed; bind your clutch axis to the Brake action instead.
+
+### Force feedback
+
+- Renamed `Hardware sign flip (G923 quirk)` to `Invert FFB direction` for clarity.
+- Added `Speed-sensitive stiffness` toggle: on (default) firms the wheel up at speed (sportscar-style assist); off is pure tire-force feedback (BeamNG-like).
+
+### Physics
+
+- Per-vehicle physics readout (turn rate, wheelbase, wheel grip) now goes through TweakDB record lookup with a per-mount cache, replacing the previous live-RTTI struct walk for the values TweakDB authors. Per-tick state still uses hardcoded struct offsets.
+
+### Distribution / packaging
+
+- FOMOD installer pre-warns about the four-file Mod Settings conflict (`mod_settings.dll`, `packed.reds`, `ModSettings.archive`, `ModSettings.archive.xl`) on its first page, so users know what to pick before Vortex shows the deploy-time prompt.
+- Zip-mode `deploy.ps1` now ships the patched mod_settings `packed.reds`, `ModSettings.archive`, and `ModSettings.archive.xl`, plus `gwheel_input_provider.reds`. Without these, the new press-to-bind UI never compiled in-game on Vortex installs (direct-deploy was unaffected).
+
 ## 2.31.0 — 2026-04-25
 
 First public release. Tested against Cyberpunk 2077 patch 2.31 (build 5294808).
 
 ### Wheel I/O
 
-- Wheel input and force feedback go through the official Logitech Steering Wheel SDK (vendored under `gwheel/vendor/LogitechSDK_unpacked/`). DirectInput enumeration, the ViGEmBus virtual-pad bridge, and the XInput-hook routing layer are all gone.
+- Wheel input and force feedback go through the official Logitech Steering Wheel SDK (vendored under `gwheel/vendor/LogitechSDK/`). DirectInput enumeration, the ViGEmBus virtual-pad bridge, and the XInput-hook routing layer are all gone.
 - Hardware capability detection: the plugin reads which features each wheel actually has (FFB motor, rev-strip LEDs, lower-cluster cluster) and seeds `red4ext/plugins/mod_settings/user.ini` at load time so the in-game Settings page only shows sections relevant to the connected hardware.
 
 ### Vehicle input injection

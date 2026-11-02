@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(gwheel
-  VERSION 2.31.0
+  VERSION 2.5.0
   DESCRIPTION "Logitech G-series steering wheel mod for Cyberpunk 2077"
   LANGUAGES CXX
 )
@@ -26,6 +26,20 @@ if(MSVC)
 endif()
 
 add_subdirectory(vendor/RED4ext.SDK EXCLUDE_FROM_ALL)
-add_subdirectory(gwheel)
-add_subdirectory(tools/wheel_reset)
-add_subdirectory(tools/input_probe)
+
+# The plugin and probe tools link Logitech's SDK import library, which is
+# not in the repository. Turn this off to build only the tests (CI does).
+option(GWHEEL_BUILD_PLUGIN "Build gwheel.dll and the probe tools" ON)
+if(GWHEEL_BUILD_PLUGIN)
+  add_subdirectory(gwheel)
+  add_subdirectory(tools/wheel_reset)
+  add_subdirectory(tools/input_probe)
+  add_subdirectory(tools/trueforce_probe)
+  add_subdirectory(tools/libtrueforce_probe)
+endif()
+
+option(GWHEEL_BUILD_TESTS "Build the unit tests (tests/)" OFF)
+if(GWHEEL_BUILD_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
+endif()

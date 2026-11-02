@@ -62,9 +62,9 @@ namespace
     //   - the user presses Enter in the console (marks SKIPPED), OR
     //   - 15 seconds pass with no input (marks TIMEOUT — treated same as
     //     SKIPPED / suppressed by driver).
-    // Records what was observed to a summary file so the caller (that's me,
-    // Claude) can decide whether the Logi SDK is seeing each physical
-    // control under the current G HUB profile.
+    // Records what was observed to a summary file so whoever runs the probe
+    // can see whether the Logi SDK is seeing each physical control under
+    // the current G HUB profile.
 
     struct Step { const char* label; };
 

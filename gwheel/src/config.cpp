@@ -1,6 +1,7 @@
 #include "config.h"
-#include "logging.h"
+#include "axis_resolver.h"
 #include "input_bindings.h"
+#include "logging.h"
 #include "wheel.h"
 
 #include <windows.h>
@@ -10,20 +11,29 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace gwheel::config
 {
     namespace
     {
+        // Readers take the published snapshot under a short lock and copy
+        // from it afterwards. A snapshot is immutable once published and
+        // stays alive while any reader still holds it, so a settings change
+        // can never overwrite a Config another thread is mid-way through
+        // copying (the strings and the bindings map are not safe to copy
+        // while being assigned).
         struct Store
         {
-            std::mutex            writerMutex;
-            std::atomic<int>      publishedIdx{0};
-            Config                slots[2]{};
-            std::filesystem::path path; // resolved lazily
+            std::mutex                    writerMutex;
+            std::mutex                    snapshotMutex; // guards `published` only
+            std::shared_ptr<const Config> published = std::make_shared<const Config>();
+            std::filesystem::path         path; // resolved lazily
         };
 
         Store& S()
@@ -78,8 +88,10 @@ namespace gwheel::config
             out << "  \"version\": " << c.version << ",\n";
 
             out << "  \"input\": {\n";
-            out << "    \"enabled\": "       << (c.input.enabled ? "true" : "false")       << ",\n";
-            out << "    \"clutchAsBrake\": " << (c.input.clutchAsBrake ? "true" : "false") << ",\n";
+            out << "    \"enabled\": "          << (c.input.enabled ? "true" : "false") << ",\n";
+            out << "    \"steerDeadzonePct\": " << c.input.steerDeadzonePct             << ",\n";
+            out << "    \"steerGainPct\": "     << c.input.steerGainPct                 << ",\n";
+            out << "    \"steerSpeedPct\": "    << c.input.steerSpeedPct                << ",\n";
             {
                 std::string esc;
                 EscapeJsonTo(esc, c.input.responseCurve);
@@ -91,9 +103,13 @@ namespace gwheel::config
             out << "    \"enabled\": "                 << (c.ffb.enabled ? "true" : "false")           << ",\n";
             out << "    \"debugLogging\": "            << (c.ffb.debugLogging ? "true" : "false")      << ",\n";
             out << "    \"torquePct\": "               << c.ffb.torquePct                              << ",\n";
+            out << "    \"wheelRangeDeg\": "           << c.ffb.wheelRangeDeg                          << ",\n";
             out << "    \"stationaryThresholdMps\": "  << c.ffb.stationaryThresholdMps                 << ",\n";
             out << "    \"yawFeedbackPct\": "          << c.ffb.yawFeedbackPct                         << ",\n";
-            out << "    \"activeTorqueStrengthPct\": " << c.ffb.activeTorqueStrengthPct                << "\n";
+            out << "    \"activeTorqueStrengthPct\": " << c.ffb.activeTorqueStrengthPct                << ",\n";
+            out << "    \"invertDirection\": "         << (c.ffb.invertDirection ? "true" : "false")   << ",\n";
+            out << "    \"outputSignFlip\": "          << (c.ffb.outputSignFlip ? "true" : "false")    << ",\n";
+            out << "    \"useSpring\": "               << (c.ffb.useSpring ? "true" : "false")         << "\n";
             out << "  },\n";
 
             out << "  \"handshake\": {\n";
@@ -113,6 +129,11 @@ namespace gwheel::config
             }
             out << "  },\n";
 
+            out << "  \"trueForce\": {\n";
+            out << "    \"enabled\": "     << (c.trueForce.enabled ? "true" : "false")     << ",\n";
+            out << "    \"feedSignals\": " << (c.trueForce.feedSignals ? "true" : "false") << "\n";
+            out << "  },\n";
+
             auto emitVeh = [&](const char* name, const PerVehicle& pv, bool last) {
                 out << "    \"" << name << "\": { "
                     << "\"steeringMultiplier\": " << pv.steeringMultiplier << ", "
@@ -126,47 +147,67 @@ namespace gwheel::config
             emitVeh("van", c.van, true);
             out << "  },\n";
 
-            out << "  \"bindings\": [";
-            for (size_t i = 0; i < c.bindings.size(); ++i)
+            // Sort by key so emitted JSON is deterministic across runs;
+            // an unordered_map's iteration order is implementation-defined
+            // and would otherwise produce noisy diffs.
+            std::vector<std::pair<std::string, std::string>> entries(
+                c.actionBindings.begin(), c.actionBindings.end());
+            std::sort(entries.begin(), entries.end());
+
+            out << "  \"actionBindings\": {";
+            for (size_t i = 0; i < entries.size(); ++i)
             {
-                if (i) out << ", ";
-                out << c.bindings[i];
+                out << (i == 0 ? "\n    " : ",\n    ");
+                std::string esc;
+                EscapeJsonTo(esc, entries[i].first);
+                out << esc << ": ";
+                esc.clear();
+                EscapeJsonTo(esc, entries[i].second);
+                out << esc;
             }
-            out << "]\n";
+            if (!entries.empty()) out << "\n  ";
+            out << "}\n";
 
             out << "}\n";
             return out.str();
         }
 
-        // Parse the flat "bindings" array — fixed-length, one int per
-        // PhysicalInput. Missing array or missing elements default to 0
-        // (Action::None) so older config.json files upgrade cleanly.
-        void ParseBindings(const std::string& text, Config& c)
+        // Parse the actionBindings object. Tagged tokens never contain
+        // quote characters, so a naive scan that finds key/value string
+        // pairs between braces is sufficient — no escape-aware parsing
+        // needed. Missing object = empty map (tabula rasa).
+        void ParseActionBindings(const std::string& text, Config& c)
         {
-            c.bindings.fill(0);
-            size_t arr = text.find("\"bindings\"");
-            if (arr == std::string::npos) return;
-            size_t lbrack = text.find('[', arr);
-            if (lbrack == std::string::npos) return;
-            size_t rbrack = text.find(']', lbrack);
-            if (rbrack == std::string::npos) return;
+            c.actionBindings.clear();
+            size_t pos = text.find("\"actionBindings\"");
+            if (pos == std::string::npos) return;
+            size_t lbrace = text.find('{', pos);
+            if (lbrace == std::string::npos) return;
+            size_t rbrace = text.find('}', lbrace);
+            if (rbrace == std::string::npos) return;
 
-            size_t i = lbrack + 1;
-            size_t slot = 0;
-            while (i < rbrack && slot < c.bindings.size())
+            size_t i = lbrace + 1;
+            while (i < rbrace)
             {
-                // Skip whitespace and commas.
-                while (i < rbrack && (text[i] == ' ' || text[i] == '\t' || text[i] == ',' ||
-                                      text[i] == '\n' || text[i] == '\r'))
-                    ++i;
-                if (i >= rbrack) break;
+                while (i < rbrace && text[i] != '"') ++i;
+                if (i >= rbrace) break;
+                size_t kStart = i + 1;
+                size_t kEnd = text.find('"', kStart);
+                if (kEnd == std::string::npos || kEnd >= rbrace) break;
+                std::string key(text, kStart, kEnd - kStart);
 
-                char* endp = nullptr;
-                long val = std::strtol(text.c_str() + i, &endp, 10);
-                if (endp == text.c_str() + i) break; // no digit found
+                size_t colon = text.find(':', kEnd);
+                if (colon == std::string::npos || colon >= rbrace) break;
+                i = colon + 1;
+                while (i < rbrace && text[i] != '"') ++i;
+                if (i >= rbrace) break;
+                size_t vStart = i + 1;
+                size_t vEnd = text.find('"', vStart);
+                if (vEnd == std::string::npos || vEnd >= rbrace) break;
+                std::string val(text, vStart, vEnd - vStart);
 
-                c.bindings[slot++] = static_cast<int32_t>(val);
-                i = static_cast<size_t>(endp - text.c_str());
+                c.actionBindings[std::move(key)] = std::move(val);
+                i = vEnd + 1;
             }
         }
 
@@ -231,15 +272,21 @@ namespace gwheel::config
             ExtractInt   (text, {},         "version",                c.version);
 
             ExtractBool  (text, "input",    "enabled",                c.input.enabled);
-            ExtractBool  (text, "input",    "clutchAsBrake",          c.input.clutchAsBrake);
+            ExtractInt   (text, "input",    "steerDeadzonePct",       c.input.steerDeadzonePct);
+            ExtractInt   (text, "input",    "steerGainPct",           c.input.steerGainPct);
+            ExtractInt   (text, "input",    "steerSpeedPct",          c.input.steerSpeedPct);
             ExtractString(text, "input",    "responseCurve",          c.input.responseCurve);
 
             ExtractBool  (text, "ffb",      "enabled",                c.ffb.enabled);
             ExtractBool  (text, "ffb",      "debugLogging",           c.ffb.debugLogging);
             ExtractInt   (text, "ffb",      "torquePct",              c.ffb.torquePct);
+            ExtractInt   (text, "ffb",      "wheelRangeDeg",          c.ffb.wheelRangeDeg);
             ExtractFloat (text, "ffb",      "stationaryThresholdMps", c.ffb.stationaryThresholdMps);
             ExtractInt   (text, "ffb",      "yawFeedbackPct",         c.ffb.yawFeedbackPct);
             ExtractInt   (text, "ffb",      "activeTorqueStrengthPct", c.ffb.activeTorqueStrengthPct);
+            ExtractBool  (text, "ffb",      "invertDirection",        c.ffb.invertDirection);
+            ExtractBool  (text, "ffb",      "outputSignFlip",         c.ffb.outputSignFlip);
+            ExtractBool  (text, "ffb",      "useSpring",              c.ffb.useSpring);
 
             // "handshake" is the current key. Older config.json files from
             // pre-rename installs used "hello" for the same field; read
@@ -253,6 +300,9 @@ namespace gwheel::config
 
             ExtractString(text, "music",    "processName",            c.music.processName);
 
+            ExtractBool  (text, "trueForce", "enabled",               c.trueForce.enabled);
+            ExtractBool  (text, "trueForce", "feedSignals",           c.trueForce.feedSignals);
+
             auto vehExtract = [&](const char* section, PerVehicle& pv) {
                 ExtractFloat(text, section, "steeringMultiplier", pv.steeringMultiplier);
                 ExtractInt  (text, section, "responseDelayMs",    pv.responseDelayMs);
@@ -262,7 +312,7 @@ namespace gwheel::config
             vehExtract("truck", c.truck);
             vehExtract("van", c.van);
 
-            ParseBindings(text, c);
+            ParseActionBindings(text, c);
         }
 
         void SaveLocked(const Config& c)
@@ -289,17 +339,54 @@ namespace gwheel::config
         void ApplyDerived(const Config& c)
         {
             // Anything that must take effect immediately when config changes.
+            //
+            // Edge-triggered info log on the debug-logging toggle so the
+            // user can confirm in the log file that the Mod Settings
+            // checkbox actually propagated. Without this, a user
+            // diagnosing a "debug logs aren't working" issue has no way
+            // to tell whether the flag flipped or not — the absence of
+            // debug lines could mean either "toggle didn't apply" or
+            // "no debug paths fired".
+            static std::atomic<int> s_lastDebugFlag{-1}; // -1 = first call
+            const int newFlag = c.ffb.debugLogging ? 1 : 0;
+            const int prev = s_lastDebugFlag.exchange(newFlag, std::memory_order_acq_rel);
             log::SetDebugEnabled(c.ffb.debugLogging);
-            input_bindings::ReplaceAll(c.bindings);
+            if (prev != newFlag)
+            {
+                log::InfoF("[gwheel] debug logging %s",
+                           c.ffb.debugLogging ? "ENABLED" : "disabled");
+            }
+
             wheel::SetGlobalStrength(std::clamp(c.ffb.torquePct, 0, 100) / 100.f);
+
+            // Mirror the persisted action bindings into both runtime
+            // dispatchers. Clear-then-repopulate handles deletions cleanly:
+            // a key removed from c.actionBindings disappears from both
+            // resolvers on the next Mutate.
+            //
+            // Each entry is fanned out to every dispatcher; each dispatcher
+            // ignores entries it doesn't own (axis_resolver ignores button
+            // tokens, input_bindings ignores axis tokens, both ignore
+            // empty values).
+            axis_resolver::Clear();
+            input_bindings::Clear();
+            for (const auto& kv : c.actionBindings)
+            {
+                axis_resolver::SetBinding(kv.first.c_str(), kv.second.c_str());
+                input_bindings::SetActionBinding(kv.first, kv.second);
+            }
         }
 
         void Publish(const Config& next)
         {
             auto& st = S();
-            const int writeIdx = 1 - st.publishedIdx.load(std::memory_order_relaxed);
-            st.slots[writeIdx] = next;
-            st.publishedIdx.store(writeIdx, std::memory_order_release);
+            auto snapshot = std::make_shared<const Config>(next);
+            {
+                std::lock_guard lk(st.snapshotMutex);
+                st.published.swap(snapshot);
+            }
+            // `snapshot` now holds the previous Config; it is freed here or
+            // by the last reader still copying it.
             ApplyDerived(next);
             SaveLocked(next);
         }
@@ -318,8 +405,12 @@ namespace gwheel::config
     Config Current()
     {
         auto& st = S();
-        const int idx = st.publishedIdx.load(std::memory_order_acquire);
-        return st.slots[idx];
+        std::shared_ptr<const Config> snapshot;
+        {
+            std::lock_guard lk(st.snapshotMutex);
+            snapshot = st.published;
+        }
+        return *snapshot;
     }
 
     void Load()
@@ -368,7 +459,10 @@ namespace gwheel::config
     }
 
     void SetInputEnabled(bool v)            { Mutate([&](Config& c){ c.input.enabled = v; }); }
-    void SetClutchAsBrake(bool v)           { Mutate([&](Config& c){ c.input.clutchAsBrake = v; }); }
+
+    void SetSteerDeadzonePct(int32_t v)     { Mutate([&](Config& c){ c.input.steerDeadzonePct = std::clamp(v, 0, 15); }); }
+    void SetSteerGainPct(int32_t v)         { Mutate([&](Config& c){ c.input.steerGainPct = std::clamp(v, 50, 400); }); }
+    void SetSteerSpeedPct(int32_t v)        { Mutate([&](Config& c){ c.input.steerSpeedPct = std::clamp(v, 100, 1000); }); }
 
     void SetResponseCurve(std::string_view v)
     {
@@ -380,10 +474,15 @@ namespace gwheel::config
     void SetFfbEnabled(bool v)              { Mutate([&](Config& c){ c.ffb.enabled = v; }); }
     void SetFfbDebugLogging(bool v)         { Mutate([&](Config& c){ c.ffb.debugLogging = v; }); }
     void SetFfbTorquePct(int32_t v)         { Mutate([&](Config& c){ c.ffb.torquePct = std::clamp(v, 0, 100); }); }
+    // 0 = auto (read from G HUB); otherwise 40..1080 like the wheel itself.
+    void SetFfbWheelRangeDeg(int32_t v)     { Mutate([&](Config& c){ c.ffb.wheelRangeDeg = (v <= 0) ? 0 : std::clamp(v, 40, 1080); }); }
 
     void SetStationaryThresholdMps(float v) { Mutate([&](Config& c){ c.ffb.stationaryThresholdMps = std::clamp(v, 0.f, 10.f); }); }
     void SetYawFeedbackPct(int32_t v)       { Mutate([&](Config& c){ c.ffb.yawFeedbackPct = std::clamp(v, 0, 100); }); }
     void SetActiveTorqueStrengthPct(int32_t v) { Mutate([&](Config& c){ c.ffb.activeTorqueStrengthPct = std::clamp(v, 0, 100); }); }
+    void SetFfbInvertDirection(bool v)         { Mutate([&](Config& c){ c.ffb.invertDirection = v; }); }
+    void SetFfbOutputSignFlip(bool v)          { Mutate([&](Config& c){ c.ffb.outputSignFlip = v; }); }
+    void SetFfbUseSpring(bool v)               { Mutate([&](Config& c){ c.ffb.useSpring = v; }); }
 
     void SetHandshakePlayOnStart(bool v)    { Mutate([&](Config& c){ c.handshake.playOnStart = v; }); }
 
@@ -396,16 +495,19 @@ namespace gwheel::config
         Mutate([&](Config& c){ c.music.processName = s; });
     }
 
-    void SetInputBinding(int32_t inputId, int32_t action)
+    void SetTrueForceEnabled(bool v)        { Mutate([&](Config& c){ c.trueForce.enabled = v; }); }
+    void SetTrueForceFeedSignals(bool v)    { Mutate([&](Config& c){ c.trueForce.feedSignals = v; }); }
+
+    void SetActionBinding(std::string_view name, std::string_view value)
     {
-        if (inputId < 0 || static_cast<size_t>(inputId) >= Config::kBindingCount)
-        {
-            log::WarnF("[gwheel] SetInputBinding: inputId %d out of range [0..%zu)",
-                       inputId, Config::kBindingCount);
-            return;
-        }
+        if (name.empty()) return;
+        std::string k(name);
+        std::string v(value);
         Mutate([&](Config& c) {
-            c.bindings[static_cast<size_t>(inputId)] = action;
+            if (v.empty())
+                c.actionBindings.erase(k);
+            else
+                c.actionBindings[k] = v;
         });
     }
 }

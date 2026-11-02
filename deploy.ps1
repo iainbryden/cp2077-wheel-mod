@@ -45,7 +45,7 @@ function Fail($msg)    {
 
 # ---------- version ---------------------------------------------------------
 
-$version = "2.31.0"
+$version = "2.31.2"
 try {
   $modInfo = Get-Content -Raw "mod_info.json" | ConvertFrom-Json
   if ($modInfo.version) { $version = $modInfo.version }
@@ -62,7 +62,8 @@ $redsFiles = @(
   "gwheel_reds\gwheel_mount.reds",
   "gwheel_reds\gwheel_events.reds",
   "gwheel_reds\gwheel_surface.reds",
-  "gwheel_reds\gwheel_vehicle_signals.reds"
+  "gwheel_reds\gwheel_vehicle_signals.reds",
+  "gwheel_reds\gwheel_input_provider.reds"
 )
 foreach ($r in $redsFiles) {
   if (-not (Test-Path $r)) { Fail "Missing redscript source: $r" }
@@ -203,6 +204,48 @@ if ($Game) {
   } else {
     Copy-Item -Force $patchedModSettingsDll $modSettingsTarget
     Info "Deployed patched mod_settings.dll -> $modSettingsTarget"
+
+    # Ship the patched mod_settings packed.reds (our fork's redscript-side
+    # changes — InputBinding primitive, InputBindingDisplay resolver, the
+    # listening UI capture loop). Built by build.ps1 / the manual
+    # PackFiles.cmake step. Without this copy, redscript-side fixes never
+    # reach the game (mod_settings.dll is C++ only and the user's existing
+    # packed.reds from upstream stays in place).
+    $patchedModSettingsReds = Join-Path $repoRoot "vendor\mod_settings\build\staging\packed.reds"
+    if (Test-Path $patchedModSettingsReds) {
+      Copy-Item -Force $patchedModSettingsReds (Join-Path $modSettingsDir "packed.reds")
+      Info "Deployed patched mod_settings packed.reds -> $modSettingsDir\packed.reds"
+    } else {
+      Warn "No staged packed.reds at $patchedModSettingsReds. Run build.ps1 (or manually invoke vendor/mod_settings/deps/cpcmake/scripts/PackFiles.cmake) before deploy."
+    }
+
+    # Ship the Wolvenkit-packed ModSettings.archive (visual layout edits to
+    # mod_settings_main.inkwidget, etc.) and its .archive.xl companion
+    # (localization registration).
+    #
+    # Read directly from src/wolvenkit/packed/, NOT from the game_dir/
+    # staging copy. The staging copy is populated by mod_settings's CMake
+    # post-build target, which silently fails (LASTEXITCODE=1, swallowed
+    # by build.ps1) whenever Wolvenkit's "Pack Mod" path doesn't match
+    # what CMake expects. Reading from packed/ removes one layer of
+    # silent staleness — when the user clicks "Pack Mod" in the Wolvenkit
+    # GUI, the next deploy picks it up directly. The .archive.xl source
+    # is the authored file at src/archiveXL/, which Wolvenkit's pack also
+    # copies into game_dir/ but we don't need that hop.
+    $packedArchiveSrc   = Join-Path $repoRoot "vendor\mod_settings\src\wolvenkit\packed\archive\pc\mod\ModSettings.archive"
+    $packedArchiveXlSrc = Join-Path $repoRoot "vendor\mod_settings\src\archiveXL\ModSettings.archive.xl"
+    if (-not (Test-Path $packedArchiveSrc)) {
+      Warn "No Wolvenkit-packed archive at $packedArchiveSrc. In Wolvenkit: open ModSettings.cpmodproj, then click Pack Project on the toolbar. Skipping archive deploy."
+    } else {
+      Copy-Item -Force $packedArchiveSrc (Join-Path $modSettingsDir "ModSettings.archive")
+      Info "Deployed ModSettings.archive -> $modSettingsDir\ModSettings.archive"
+      if (Test-Path $packedArchiveXlSrc) {
+        Copy-Item -Force $packedArchiveXlSrc (Join-Path $modSettingsDir "ModSettings.archive.xl")
+        Info "Deployed ModSettings.archive.xl -> $modSettingsDir\ModSettings.archive.xl"
+      } else {
+        Warn "Authored .archive.xl missing at $packedArchiveXlSrc; skipping."
+      }
+    }
   }
 
   # Logitech Gaming Software / G HUB runtime check. The Logitech SDK the DLL
@@ -315,6 +358,28 @@ foreach ($c in $fomodConfigFiles) {
 foreach ($r in $redsFiles) {
   Copy-Item -Force $r (Join-Path $stagingDir (Split-Path $r -Leaf | ForEach-Object { "gwheel_reds\$_" }))
 }
+
+# Patched mod_settings redscript bundle + Wolvenkit-packed archive. These
+# carry our fork's redscript-side changes (InputBinding primitive,
+# ModSettingsInputProvider, pair-widget UI) and the .inkwidget layout
+# edits. Without them the new bind-from-Mod-Settings UI never compiles
+# and the pair widget never appears in-game.
+$patchedModSettingsReds = Join-Path $repoRoot "vendor\mod_settings\build\staging\packed.reds"
+if (-not (Test-Path $patchedModSettingsReds)) {
+  Fail "Missing patched mod_settings packed.reds at $patchedModSettingsReds. Run build.ps1 (it packs the bundle as part of the mod_settings build step)."
+}
+Copy-Item -Force $patchedModSettingsReds (Join-Path $stagingDir "mod_settings\packed.reds")
+
+$packedArchiveSrc   = Join-Path $repoRoot "vendor\mod_settings\src\wolvenkit\packed\archive\pc\mod\ModSettings.archive"
+$packedArchiveXlSrc = Join-Path $repoRoot "vendor\mod_settings\src\archiveXL\ModSettings.archive.xl"
+if (-not (Test-Path $packedArchiveSrc)) {
+  Fail "Missing Wolvenkit-packed ModSettings.archive at $packedArchiveSrc. In Wolvenkit: open ModSettings.cpmodproj, then click Pack Project on the toolbar before re-running deploy."
+}
+Copy-Item -Force $packedArchiveSrc (Join-Path $stagingDir "mod_settings\ModSettings.archive")
+if (-not (Test-Path $packedArchiveXlSrc)) {
+  Fail "Missing ModSettings.archive.xl at $packedArchiveXlSrc."
+}
+Copy-Item -Force $packedArchiveXlSrc (Join-Path $stagingDir "mod_settings\ModSettings.archive.xl")
 
 # Include README + CHANGELOG as top-level files so Vortex shows them.
 if (Test-Path "README.md")    { Copy-Item -Force "README.md"    $stagingDir }
