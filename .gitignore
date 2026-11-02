@@ -102,3 +102,7 @@ tools/dump_walker/
 #                             to isolate whether the fork triggered the
 #                             crash.
 dev-scripts/
+
+# Python
+__pycache__/
+*.pyc
