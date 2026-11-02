@@ -40,7 +40,7 @@ namespace gwheel::config
         // the road wheels follow the steer input (see steering_speed.h).
         // 100 = authored rates. Applies to vehicles spawned after the
         // change. Percent, 100..1000.
-        int32_t     steerSpeedPct = 100;
+        int32_t     steerSpeedPct = 300;
     };
 
     struct Ffb

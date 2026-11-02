@@ -99,7 +99,7 @@ public class GWheelSettings extends IScriptable {
   @runtimeProperty("ModSettings.min", "100")
   @runtimeProperty("ModSettings.max", "1000")
   @runtimeProperty("ModSettings.step", "25")
-  let steerSpeedPct: Int32 = 100;
+  let steerSpeedPct: Int32 = 300;
 
   @runtimeProperty("ModSettings.mod", "G-series Wheel")
   @runtimeProperty("ModSettings.category", "Wheel input")
