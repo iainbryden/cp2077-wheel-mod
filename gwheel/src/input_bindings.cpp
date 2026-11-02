@@ -718,6 +718,22 @@ namespace gwheel::input_bindings
         const uint32_t buttons = frame.digital.buttons;
         const DWORD    pov     = static_cast<DWORD>(frame.digital.pov);
 
+        // Log every raw button / D-pad press with the token it binds as, so
+        // the button names in the settings menu can be checked against what
+        // the wheel actually reports. Pump thread only; presses are rare.
+        {
+            static uint32_t s_logPrevButtons = 0;
+            static DWORD    s_logPrevPov     = 0xFFFFFFFF;
+            const uint32_t pressed = buttons & ~s_logPrevButtons;
+            for (int i = 0; i < 32; ++i)
+                if (pressed & (1u << i))
+                    log::InfoF("[gwheel:button] wheel:%d pressed", i);
+            if (pov != s_logPrevPov && LOWORD(pov) != 0xFFFF)
+                log::InfoF("[gwheel:button] wheel-pov:%lu pressed", static_cast<unsigned long>(pov));
+            s_logPrevButtons = buttons;
+            s_logPrevPov     = pov;
+        }
+
         // Tracks whether THIS tick filled the captured slot (false→true
         // transition) and whether capture is still armed. Both are set
         // inside the lock so we can release the mutex before SendInput.

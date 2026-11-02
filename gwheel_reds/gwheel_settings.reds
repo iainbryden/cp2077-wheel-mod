@@ -47,6 +47,34 @@ enum GWheelResponseCurve {
   Sharp   = 2,
 }
 
+// Wheel buttons for the in-menu binding dropdowns. Persisted by dropdown
+// POSITION like every Mod Settings enum: append only, never reorder.
+enum GWheelButton {
+  None = 0,
+  Cross = 1,
+  Square = 2,
+  Circle = 3,
+  Triangle = 4,
+  PaddleRight = 5,
+  PaddleLeft = 6,
+  R2 = 7,
+  L2 = 8,
+  Share = 9,
+  Options = 10,
+  R3 = 11,
+  L3 = 12,
+  Plus = 13,
+  Minus = 14,
+  DialRight = 15,
+  DialLeft = 16,
+  DialPress = 17,
+  PS = 18,
+  DpadUp = 19,
+  DpadRight = 20,
+  DpadDown = 21,
+  DpadLeft = 22,
+}
+
 public class GWheelSettings extends IScriptable {
 
   // ---- Hidden capability flags (auto-set in OnGameAttached) --------------
@@ -230,91 +258,1092 @@ public class GWheelSettings extends IScriptable {
 
   // ---- Driving ------------------------------------------------------------
 
-  let bindHorn: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: driving")
+  @runtimeProperty("ModSettings.category.order", "400")
+  @runtimeProperty("ModSettings.displayName", "Horn")
+  @runtimeProperty("ModSettings.description", "Held while the button is held.")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnHorn: GWheelButton = GWheelButton.None;
 
-  let bindHeadlights: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: driving")
+  @runtimeProperty("ModSettings.category.order", "400")
+  @runtimeProperty("ModSettings.displayName", "Headlights")
+  @runtimeProperty("ModSettings.description", "Cycles the lights (V).")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnHeadlights: GWheelButton = GWheelButton.None;
 
-  let bindHandbrake: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: driving")
+  @runtimeProperty("ModSettings.category.order", "400")
+  @runtimeProperty("ModSettings.displayName", "Handbrake")
+  @runtimeProperty("ModSettings.description", "Held while the button is held.")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnHandbrake: GWheelButton = GWheelButton.None;
 
-  let bindAutodrive: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: driving")
+  @runtimeProperty("ModSettings.category.order", "400")
+  @runtimeProperty("ModSettings.displayName", "Autodrive")
+  @runtimeProperty("ModSettings.description", "Hold to engage (G).")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnAutodrive: GWheelButton = GWheelButton.None;
 
-  let bindExitVehicle: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: driving")
+  @runtimeProperty("ModSettings.category.order", "400")
+  @runtimeProperty("ModSettings.displayName", "Exit vehicle")
+  @runtimeProperty("ModSettings.description", "Hold to get out (F).")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnExitVehicle: GWheelButton = GWheelButton.None;
 
-  let bindCallVehicle: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: driving")
+  @runtimeProperty("ModSettings.category.order", "400")
+  @runtimeProperty("ModSettings.displayName", "Call vehicle")
+  @runtimeProperty("ModSettings.description", "Summons your car (V).")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnCallVehicle: GWheelButton = GWheelButton.None;
 
   // ---- Camera -------------------------------------------------------------
 
-  let bindCameraCycleForward: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: camera")
+  @runtimeProperty("ModSettings.category.order", "410")
+  @runtimeProperty("ModSettings.displayName", "Cycle camera")
+  @runtimeProperty("ModSettings.description", "Next camera view (Q).")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnCameraCycleForward: GWheelButton = GWheelButton.None;
 
-  let bindRearViewCamera: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: camera")
+  @runtimeProperty("ModSettings.category.order", "410")
+  @runtimeProperty("ModSettings.displayName", "Look behind (hold)")
+  @runtimeProperty("ModSettings.description", "Rear view while held (middle mouse).")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnRearViewCamera: GWheelButton = GWheelButton.None;
 
-  let bindCameraReset: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: camera")
+  @runtimeProperty("ModSettings.category.order", "410")
+  @runtimeProperty("ModSettings.displayName", "Reset camera")
+  @runtimeProperty("ModSettings.description", "Recenters the camera (C).")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnCameraReset: GWheelButton = GWheelButton.None;
 
   // ---- Combat -------------------------------------------------------------
 
-  let bindShootPrimary: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: combat")
+  @runtimeProperty("ModSettings.category.order", "420")
+  @runtimeProperty("ModSettings.displayName", "Shoot")
+  @runtimeProperty("ModSettings.description", "Primary fire, held (left mouse). Aiming still follows the mouse / camera.")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnShootPrimary: GWheelButton = GWheelButton.None;
 
-  let bindShootSecondary: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: combat")
+  @runtimeProperty("ModSettings.category.order", "420")
+  @runtimeProperty("ModSettings.displayName", "Aim / secondary fire")
+  @runtimeProperty("ModSettings.description", "Held (right mouse).")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnShootSecondary: GWheelButton = GWheelButton.None;
 
-  let bindShootTertiary: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: combat")
+  @runtimeProperty("ModSettings.category.order", "420")
+  @runtimeProperty("ModSettings.displayName", "Tertiary fire")
+  @runtimeProperty("ModSettings.description", "Held (Left Ctrl).")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnShootTertiary: GWheelButton = GWheelButton.None;
 
   // ---- Weapons ------------------------------------------------------------
 
-  let bindNextWeapon: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: combat")
+  @runtimeProperty("ModSettings.category.order", "420")
+  @runtimeProperty("ModSettings.displayName", "Next weapon")
+  @runtimeProperty("ModSettings.description", "Mouse wheel up.")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnNextWeapon: GWheelButton = GWheelButton.None;
 
-  let bindPrevWeapon: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: combat")
+  @runtimeProperty("ModSettings.category.order", "420")
+  @runtimeProperty("ModSettings.displayName", "Previous weapon")
+  @runtimeProperty("ModSettings.description", "Mouse wheel down.")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnPrevWeapon: GWheelButton = GWheelButton.None;
 
-  let bindWeaponSlot1: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: combat")
+  @runtimeProperty("ModSettings.category.order", "420")
+  @runtimeProperty("ModSettings.displayName", "Weapon slot 1")
+  @runtimeProperty("ModSettings.description", "(1)")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnWeaponSlot1: GWheelButton = GWheelButton.None;
 
-  let bindWeaponSlot2: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: combat")
+  @runtimeProperty("ModSettings.category.order", "420")
+  @runtimeProperty("ModSettings.displayName", "Weapon slot 2")
+  @runtimeProperty("ModSettings.description", "(2)")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnWeaponSlot2: GWheelButton = GWheelButton.None;
 
-  let bindSwitchWeapons: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: combat")
+  @runtimeProperty("ModSettings.category.order", "420")
+  @runtimeProperty("ModSettings.displayName", "Weapon wheel (hold)")
+  @runtimeProperty("ModSettings.description", "Held (Alt). Choosing from the wheel still needs the mouse.")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnSwitchWeapons: GWheelButton = GWheelButton.None;
 
-  let bindHolsterWeapon: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: combat")
+  @runtimeProperty("ModSettings.category.order", "420")
+  @runtimeProperty("ModSettings.displayName", "Holster weapon")
+  @runtimeProperty("ModSettings.description", "(B)")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnHolsterWeapon: GWheelButton = GWheelButton.None;
 
   // ---- Radio --------------------------------------------------------------
 
-  let bindRadioMenu: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: radio and items")
+  @runtimeProperty("ModSettings.category.order", "430")
+  @runtimeProperty("ModSettings.displayName", "Radio")
+  @runtimeProperty("ModSettings.description", "Tap for next station, hold for the radio menu (R).")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnRadioMenu: GWheelButton = GWheelButton.None;
 
-  let bindRadioNext: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: radio and items")
+  @runtimeProperty("ModSettings.category.order", "430")
+  @runtimeProperty("ModSettings.displayName", "Next radio station")
+  @runtimeProperty("ModSettings.description", "Switches station directly.")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnRadioNext: GWheelButton = GWheelButton.None;
 
   // ---- Gameplay -----------------------------------------------------------
 
-  let bindUseConsumable: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: radio and items")
+  @runtimeProperty("ModSettings.category.order", "430")
+  @runtimeProperty("ModSettings.displayName", "Use consumable")
+  @runtimeProperty("ModSettings.description", "(X)")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnUseConsumable: GWheelButton = GWheelButton.None;
 
-  let bindIconicCyberware: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: radio and items")
+  @runtimeProperty("ModSettings.category.order", "430")
+  @runtimeProperty("ModSettings.displayName", "Iconic cyberware")
+  @runtimeProperty("ModSettings.description", "(E)")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnIconicCyberware: GWheelButton = GWheelButton.None;
 
-  let bindQuickSave: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: radio and items")
+  @runtimeProperty("ModSettings.category.order", "430")
+  @runtimeProperty("ModSettings.displayName", "Quick save")
+  @runtimeProperty("ModSettings.description", "(F5)")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnQuickSave: GWheelButton = GWheelButton.None;
 
   // ---- Menus --------------------------------------------------------------
 
-  let bindOpenMap: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: menus")
+  @runtimeProperty("ModSettings.category.order", "440")
+  @runtimeProperty("ModSettings.displayName", "Map")
+  @runtimeProperty("ModSettings.description", "(M)")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnOpenMap: GWheelButton = GWheelButton.None;
 
-  let bindOpenJournal: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: menus")
+  @runtimeProperty("ModSettings.category.order", "440")
+  @runtimeProperty("ModSettings.displayName", "Journal")
+  @runtimeProperty("ModSettings.description", "(J)")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnOpenJournal: GWheelButton = GWheelButton.None;
 
-  let bindOpenInventory: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: menus")
+  @runtimeProperty("ModSettings.category.order", "440")
+  @runtimeProperty("ModSettings.displayName", "Inventory")
+  @runtimeProperty("ModSettings.description", "(I)")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnOpenInventory: GWheelButton = GWheelButton.None;
 
-  let bindOpenPhone: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: menus")
+  @runtimeProperty("ModSettings.category.order", "440")
+  @runtimeProperty("ModSettings.displayName", "Phone")
+  @runtimeProperty("ModSettings.description", "Tap answers a call, hold opens the phone (T).")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnOpenPhone: GWheelButton = GWheelButton.None;
 
-  let bindOpenPerks: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: menus")
+  @runtimeProperty("ModSettings.category.order", "440")
+  @runtimeProperty("ModSettings.displayName", "Perks")
+  @runtimeProperty("ModSettings.description", "(P)")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnOpenPerks: GWheelButton = GWheelButton.None;
 
-  let bindOpenCrafting: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: menus")
+  @runtimeProperty("ModSettings.category.order", "440")
+  @runtimeProperty("ModSettings.displayName", "Crafting")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnOpenCrafting: GWheelButton = GWheelButton.None;
 
-  let bindPause: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: menus")
+  @runtimeProperty("ModSettings.category.order", "440")
+  @runtimeProperty("ModSettings.displayName", "Pause")
+  @runtimeProperty("ModSettings.description", "(Esc)")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnPause: GWheelButton = GWheelButton.None;
 
   // ---- Menu navigation ----------------------------------------------------
 
-  let bindMenuConfirm: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: menus")
+  @runtimeProperty("ModSettings.category.order", "440")
+  @runtimeProperty("ModSettings.displayName", "Menu confirm")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnMenuConfirm: GWheelButton = GWheelButton.None;
 
-  let bindMenuCancel: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: menus")
+  @runtimeProperty("ModSettings.category.order", "440")
+  @runtimeProperty("ModSettings.displayName", "Menu back")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnMenuCancel: GWheelButton = GWheelButton.None;
 
-  let bindMenuUp: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: menus")
+  @runtimeProperty("ModSettings.category.order", "440")
+  @runtimeProperty("ModSettings.displayName", "Menu up")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnMenuUp: GWheelButton = GWheelButton.None;
 
-  let bindMenuDown: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: menus")
+  @runtimeProperty("ModSettings.category.order", "440")
+  @runtimeProperty("ModSettings.displayName", "Menu down")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnMenuDown: GWheelButton = GWheelButton.None;
 
-  let bindMenuLeft: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: menus")
+  @runtimeProperty("ModSettings.category.order", "440")
+  @runtimeProperty("ModSettings.displayName", "Menu left")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnMenuLeft: GWheelButton = GWheelButton.None;
 
-  let bindMenuRight: String = "";
+  @runtimeProperty("ModSettings.mod", "G-series Wheel")
+  @runtimeProperty("ModSettings.category", "Buttons: menus")
+  @runtimeProperty("ModSettings.category.order", "440")
+  @runtimeProperty("ModSettings.displayName", "Menu right")
+  @runtimeProperty("ModSettings.displayValues.None", "Not bound")
+  @runtimeProperty("ModSettings.displayValues.Cross", "Cross (X)")
+  @runtimeProperty("ModSettings.displayValues.Square", "Square")
+  @runtimeProperty("ModSettings.displayValues.Circle", "Circle")
+  @runtimeProperty("ModSettings.displayValues.Triangle", "Triangle")
+  @runtimeProperty("ModSettings.displayValues.PaddleRight", "Right paddle")
+  @runtimeProperty("ModSettings.displayValues.PaddleLeft", "Left paddle")
+  @runtimeProperty("ModSettings.displayValues.R2", "R2")
+  @runtimeProperty("ModSettings.displayValues.L2", "L2")
+  @runtimeProperty("ModSettings.displayValues.Share", "Share")
+  @runtimeProperty("ModSettings.displayValues.Options", "Options")
+  @runtimeProperty("ModSettings.displayValues.R3", "R3")
+  @runtimeProperty("ModSettings.displayValues.L3", "L3")
+  @runtimeProperty("ModSettings.displayValues.Plus", "Plus (+)")
+  @runtimeProperty("ModSettings.displayValues.Minus", "Minus (-)")
+  @runtimeProperty("ModSettings.displayValues.DialRight", "Red dial right")
+  @runtimeProperty("ModSettings.displayValues.DialLeft", "Red dial left")
+  @runtimeProperty("ModSettings.displayValues.DialPress", "Red dial press")
+  @runtimeProperty("ModSettings.displayValues.PS", "PS button")
+  @runtimeProperty("ModSettings.displayValues.DpadUp", "D-pad up")
+  @runtimeProperty("ModSettings.displayValues.DpadRight", "D-pad right")
+  @runtimeProperty("ModSettings.displayValues.DpadDown", "D-pad down")
+  @runtimeProperty("ModSettings.displayValues.DpadLeft", "D-pad left")
+  let btnMenuRight: GWheelButton = GWheelButton.None;
 
   // ---- Startup ------------------------------------------------------------
 
@@ -341,6 +1370,34 @@ public class GWheelSettings extends IScriptable {
     if Equals(c, GWheelResponseCurve.Subdued) { return "subdued"; }
     if Equals(c, GWheelResponseCurve.Sharp)   { return "sharp"; }
     return "default";
+  }
+
+  // Map a button dropdown value to the tagged token the plugin's
+  // input_bindings layer parses ("wheel:N" / "wheel-pov:DEG").
+  public static func ButtonToken(b: GWheelButton) -> String {
+    if Equals(b, GWheelButton.Cross) { return "wheel:0"; }
+    if Equals(b, GWheelButton.Square) { return "wheel:1"; }
+    if Equals(b, GWheelButton.Circle) { return "wheel:2"; }
+    if Equals(b, GWheelButton.Triangle) { return "wheel:3"; }
+    if Equals(b, GWheelButton.PaddleRight) { return "wheel:4"; }
+    if Equals(b, GWheelButton.PaddleLeft) { return "wheel:5"; }
+    if Equals(b, GWheelButton.R2) { return "wheel:6"; }
+    if Equals(b, GWheelButton.L2) { return "wheel:7"; }
+    if Equals(b, GWheelButton.Share) { return "wheel:8"; }
+    if Equals(b, GWheelButton.Options) { return "wheel:9"; }
+    if Equals(b, GWheelButton.R3) { return "wheel:10"; }
+    if Equals(b, GWheelButton.L3) { return "wheel:11"; }
+    if Equals(b, GWheelButton.Plus) { return "wheel:19"; }
+    if Equals(b, GWheelButton.Minus) { return "wheel:20"; }
+    if Equals(b, GWheelButton.DialRight) { return "wheel:21"; }
+    if Equals(b, GWheelButton.DialLeft) { return "wheel:22"; }
+    if Equals(b, GWheelButton.DialPress) { return "wheel:23"; }
+    if Equals(b, GWheelButton.PS) { return "wheel:24"; }
+    if Equals(b, GWheelButton.DpadUp) { return "wheel-pov:0"; }
+    if Equals(b, GWheelButton.DpadRight) { return "wheel-pov:9000"; }
+    if Equals(b, GWheelButton.DpadDown) { return "wheel-pov:18000"; }
+    if Equals(b, GWheelButton.DpadLeft) { return "wheel-pov:27000"; }
+    return "";
   }
 
   // ---- Listener callbacks (invoked by Mod Settings, NOT cb funcs) --------
@@ -382,49 +1439,49 @@ public class GWheelSettings extends IScriptable {
     GWheel_SetActionBinding("ThrottleAxis",       this.bindThrottleAxis);
     GWheel_SetActionBinding("BrakeAxis",          this.bindBrakeAxis);
 
-    GWheel_SetActionBinding("Horn",               this.bindHorn);
-    GWheel_SetActionBinding("Headlights",         this.bindHeadlights);
-    GWheel_SetActionBinding("Handbrake",          this.bindHandbrake);
-    GWheel_SetActionBinding("Autodrive",          this.bindAutodrive);
-    GWheel_SetActionBinding("ExitVehicle",        this.bindExitVehicle);
-    GWheel_SetActionBinding("CallVehicle",        this.bindCallVehicle);
+    GWheel_SetActionBinding("Horn",               GWheelSettings.ButtonToken(this.btnHorn));
+    GWheel_SetActionBinding("Headlights",         GWheelSettings.ButtonToken(this.btnHeadlights));
+    GWheel_SetActionBinding("Handbrake",          GWheelSettings.ButtonToken(this.btnHandbrake));
+    GWheel_SetActionBinding("Autodrive",          GWheelSettings.ButtonToken(this.btnAutodrive));
+    GWheel_SetActionBinding("ExitVehicle",        GWheelSettings.ButtonToken(this.btnExitVehicle));
+    GWheel_SetActionBinding("CallVehicle",        GWheelSettings.ButtonToken(this.btnCallVehicle));
 
-    GWheel_SetActionBinding("CameraCycleForward", this.bindCameraCycleForward);
-    GWheel_SetActionBinding("RearViewCamera",     this.bindRearViewCamera);
-    GWheel_SetActionBinding("CameraReset",        this.bindCameraReset);
+    GWheel_SetActionBinding("CameraCycleForward", GWheelSettings.ButtonToken(this.btnCameraCycleForward));
+    GWheel_SetActionBinding("RearViewCamera",     GWheelSettings.ButtonToken(this.btnRearViewCamera));
+    GWheel_SetActionBinding("CameraReset",        GWheelSettings.ButtonToken(this.btnCameraReset));
 
-    GWheel_SetActionBinding("ShootPrimary",       this.bindShootPrimary);
-    GWheel_SetActionBinding("ShootSecondary",     this.bindShootSecondary);
-    GWheel_SetActionBinding("ShootTertiary",      this.bindShootTertiary);
+    GWheel_SetActionBinding("ShootPrimary",       GWheelSettings.ButtonToken(this.btnShootPrimary));
+    GWheel_SetActionBinding("ShootSecondary",     GWheelSettings.ButtonToken(this.btnShootSecondary));
+    GWheel_SetActionBinding("ShootTertiary",      GWheelSettings.ButtonToken(this.btnShootTertiary));
 
-    GWheel_SetActionBinding("NextWeapon",         this.bindNextWeapon);
-    GWheel_SetActionBinding("PrevWeapon",         this.bindPrevWeapon);
-    GWheel_SetActionBinding("WeaponSlot1",        this.bindWeaponSlot1);
-    GWheel_SetActionBinding("WeaponSlot2",        this.bindWeaponSlot2);
-    GWheel_SetActionBinding("SwitchWeapons",      this.bindSwitchWeapons);
-    GWheel_SetActionBinding("HolsterWeapon",      this.bindHolsterWeapon);
+    GWheel_SetActionBinding("NextWeapon",         GWheelSettings.ButtonToken(this.btnNextWeapon));
+    GWheel_SetActionBinding("PrevWeapon",         GWheelSettings.ButtonToken(this.btnPrevWeapon));
+    GWheel_SetActionBinding("WeaponSlot1",        GWheelSettings.ButtonToken(this.btnWeaponSlot1));
+    GWheel_SetActionBinding("WeaponSlot2",        GWheelSettings.ButtonToken(this.btnWeaponSlot2));
+    GWheel_SetActionBinding("SwitchWeapons",      GWheelSettings.ButtonToken(this.btnSwitchWeapons));
+    GWheel_SetActionBinding("HolsterWeapon",      GWheelSettings.ButtonToken(this.btnHolsterWeapon));
 
-    GWheel_SetActionBinding("RadioMenu",          this.bindRadioMenu);
-    GWheel_SetActionBinding("RadioNext",          this.bindRadioNext);
+    GWheel_SetActionBinding("RadioMenu",          GWheelSettings.ButtonToken(this.btnRadioMenu));
+    GWheel_SetActionBinding("RadioNext",          GWheelSettings.ButtonToken(this.btnRadioNext));
 
-    GWheel_SetActionBinding("UseConsumable",      this.bindUseConsumable);
-    GWheel_SetActionBinding("IconicCyberware",    this.bindIconicCyberware);
-    GWheel_SetActionBinding("QuickSave",          this.bindQuickSave);
+    GWheel_SetActionBinding("UseConsumable",      GWheelSettings.ButtonToken(this.btnUseConsumable));
+    GWheel_SetActionBinding("IconicCyberware",    GWheelSettings.ButtonToken(this.btnIconicCyberware));
+    GWheel_SetActionBinding("QuickSave",          GWheelSettings.ButtonToken(this.btnQuickSave));
 
-    GWheel_SetActionBinding("OpenMap",            this.bindOpenMap);
-    GWheel_SetActionBinding("OpenJournal",        this.bindOpenJournal);
-    GWheel_SetActionBinding("OpenInventory",      this.bindOpenInventory);
-    GWheel_SetActionBinding("OpenPhone",          this.bindOpenPhone);
-    GWheel_SetActionBinding("OpenPerks",          this.bindOpenPerks);
-    GWheel_SetActionBinding("OpenCrafting",       this.bindOpenCrafting);
-    GWheel_SetActionBinding("Pause",              this.bindPause);
+    GWheel_SetActionBinding("OpenMap",            GWheelSettings.ButtonToken(this.btnOpenMap));
+    GWheel_SetActionBinding("OpenJournal",        GWheelSettings.ButtonToken(this.btnOpenJournal));
+    GWheel_SetActionBinding("OpenInventory",      GWheelSettings.ButtonToken(this.btnOpenInventory));
+    GWheel_SetActionBinding("OpenPhone",          GWheelSettings.ButtonToken(this.btnOpenPhone));
+    GWheel_SetActionBinding("OpenPerks",          GWheelSettings.ButtonToken(this.btnOpenPerks));
+    GWheel_SetActionBinding("OpenCrafting",       GWheelSettings.ButtonToken(this.btnOpenCrafting));
+    GWheel_SetActionBinding("Pause",              GWheelSettings.ButtonToken(this.btnPause));
 
-    GWheel_SetActionBinding("MenuConfirm",        this.bindMenuConfirm);
-    GWheel_SetActionBinding("MenuCancel",         this.bindMenuCancel);
-    GWheel_SetActionBinding("MenuUp",             this.bindMenuUp);
-    GWheel_SetActionBinding("MenuDown",           this.bindMenuDown);
-    GWheel_SetActionBinding("MenuLeft",           this.bindMenuLeft);
-    GWheel_SetActionBinding("MenuRight",          this.bindMenuRight);
+    GWheel_SetActionBinding("MenuConfirm",        GWheelSettings.ButtonToken(this.btnMenuConfirm));
+    GWheel_SetActionBinding("MenuCancel",         GWheelSettings.ButtonToken(this.btnMenuCancel));
+    GWheel_SetActionBinding("MenuUp",             GWheelSettings.ButtonToken(this.btnMenuUp));
+    GWheel_SetActionBinding("MenuDown",           GWheelSettings.ButtonToken(this.btnMenuDown));
+    GWheel_SetActionBinding("MenuLeft",           GWheelSettings.ButtonToken(this.btnMenuLeft));
+    GWheel_SetActionBinding("MenuRight",          GWheelSettings.ButtonToken(this.btnMenuRight));
   }
 }
 
