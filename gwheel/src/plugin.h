@@ -11,7 +11,7 @@ namespace gwheel
     inline constexpr int kVersionMajor = 2;
     inline constexpr int kVersionMinor = 5;
     inline constexpr int kVersionPatch = 0;
-    inline constexpr const char* kVersionString = "2.5.0-nightdrive.5";
+    inline constexpr const char* kVersionString = "2.5.0-nightdrive.6";
 
     struct PluginContext
     {
