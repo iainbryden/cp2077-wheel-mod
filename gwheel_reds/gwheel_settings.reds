@@ -201,407 +201,98 @@ public class GWheelSettings extends IScriptable {
   // The three axes the car cannot drive without. Defaults intentionally
   // empty (tabula rasa); first-run UX prompts the user to bind them.
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Steering & pedals")
-  @runtimeProperty("ModSettings.category.order", "400")
-  @runtimeProperty("ModSettings.displayName", "Steering")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "axis")
-  let bindSteerAxis: String = "";
+  let bindSteerAxis: String = "wheel-axis:lX";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Steering & pedals")
-  @runtimeProperty("ModSettings.category.order", "400")
-  @runtimeProperty("ModSettings.displayName", "Throttle")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "axis")
-  let bindThrottleAxis: String = "";
+  let bindThrottleAxis: String = "wheel-axis:lY";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Steering & pedals")
-  @runtimeProperty("ModSettings.category.order", "400")
-  @runtimeProperty("ModSettings.displayName", "Brake")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "axis")
-  let bindBrakeAxis: String = "";
+  let bindBrakeAxis: String = "wheel-axis:lRz";
 
   // ---- Driving ------------------------------------------------------------
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Driving")
-  @runtimeProperty("ModSettings.category.order", "500")
-  @runtimeProperty("ModSettings.displayName", "Horn")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindHorn: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Driving")
-  @runtimeProperty("ModSettings.category.order", "500")
-  @runtimeProperty("ModSettings.displayName", "Headlights")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindHeadlights: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Driving")
-  @runtimeProperty("ModSettings.category.order", "500")
-  @runtimeProperty("ModSettings.displayName", "Handbrake")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindHandbrake: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Driving")
-  @runtimeProperty("ModSettings.category.order", "500")
-  @runtimeProperty("ModSettings.displayName", "Autodrive")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindAutodrive: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Driving")
-  @runtimeProperty("ModSettings.category.order", "500")
-  @runtimeProperty("ModSettings.displayName", "Exit vehicle")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindExitVehicle: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Driving")
-  @runtimeProperty("ModSettings.category.order", "500")
-  @runtimeProperty("ModSettings.displayName", "Call vehicle")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindCallVehicle: String = "";
 
   // ---- Camera -------------------------------------------------------------
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Camera")
-  @runtimeProperty("ModSettings.category.order", "600")
-  @runtimeProperty("ModSettings.displayName", "Cycle camera forward")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindCameraCycleForward: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Camera")
-  @runtimeProperty("ModSettings.category.order", "600")
-  @runtimeProperty("ModSettings.displayName", "Rear-view camera")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindRearViewCamera: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Camera")
-  @runtimeProperty("ModSettings.category.order", "600")
-  @runtimeProperty("ModSettings.displayName", "Reset camera")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindCameraReset: String = "";
 
   // ---- Combat -------------------------------------------------------------
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Combat")
-  @runtimeProperty("ModSettings.category.order", "700")
-  @runtimeProperty("ModSettings.displayName", "Shoot primary")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindShootPrimary: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Combat")
-  @runtimeProperty("ModSettings.category.order", "700")
-  @runtimeProperty("ModSettings.displayName", "Shoot secondary")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindShootSecondary: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Combat")
-  @runtimeProperty("ModSettings.category.order", "700")
-  @runtimeProperty("ModSettings.displayName", "Shoot tertiary")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindShootTertiary: String = "";
 
   // ---- Weapons ------------------------------------------------------------
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Weapons")
-  @runtimeProperty("ModSettings.category.order", "800")
-  @runtimeProperty("ModSettings.displayName", "Next weapon")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindNextWeapon: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Weapons")
-  @runtimeProperty("ModSettings.category.order", "800")
-  @runtimeProperty("ModSettings.displayName", "Previous weapon")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindPrevWeapon: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Weapons")
-  @runtimeProperty("ModSettings.category.order", "800")
-  @runtimeProperty("ModSettings.displayName", "Weapon slot 1")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindWeaponSlot1: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Weapons")
-  @runtimeProperty("ModSettings.category.order", "800")
-  @runtimeProperty("ModSettings.displayName", "Weapon slot 2")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindWeaponSlot2: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Weapons")
-  @runtimeProperty("ModSettings.category.order", "800")
-  @runtimeProperty("ModSettings.displayName", "Switch weapons")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindSwitchWeapons: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Weapons")
-  @runtimeProperty("ModSettings.category.order", "800")
-  @runtimeProperty("ModSettings.displayName", "Holster weapon")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindHolsterWeapon: String = "";
 
   // ---- Radio --------------------------------------------------------------
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Radio")
-  @runtimeProperty("ModSettings.category.order", "900")
-  @runtimeProperty("ModSettings.displayName", "Radio menu")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindRadioMenu: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Radio")
-  @runtimeProperty("ModSettings.category.order", "900")
-  @runtimeProperty("ModSettings.displayName", "Next radio station")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindRadioNext: String = "";
 
   // ---- Gameplay -----------------------------------------------------------
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Gameplay")
-  @runtimeProperty("ModSettings.category.order", "1000")
-  @runtimeProperty("ModSettings.displayName", "Use consumable")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindUseConsumable: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Gameplay")
-  @runtimeProperty("ModSettings.category.order", "1000")
-  @runtimeProperty("ModSettings.displayName", "Iconic cyberware")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindIconicCyberware: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Gameplay")
-  @runtimeProperty("ModSettings.category.order", "1000")
-  @runtimeProperty("ModSettings.displayName", "Quick save")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindQuickSave: String = "";
 
   // ---- Menus --------------------------------------------------------------
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Menus")
-  @runtimeProperty("ModSettings.category.order", "1100")
-  @runtimeProperty("ModSettings.displayName", "Open map")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindOpenMap: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Menus")
-  @runtimeProperty("ModSettings.category.order", "1100")
-  @runtimeProperty("ModSettings.displayName", "Open journal")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindOpenJournal: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Menus")
-  @runtimeProperty("ModSettings.category.order", "1100")
-  @runtimeProperty("ModSettings.displayName", "Open inventory")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindOpenInventory: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Menus")
-  @runtimeProperty("ModSettings.category.order", "1100")
-  @runtimeProperty("ModSettings.displayName", "Open phone")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindOpenPhone: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Menus")
-  @runtimeProperty("ModSettings.category.order", "1100")
-  @runtimeProperty("ModSettings.displayName", "Open perks")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindOpenPerks: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Menus")
-  @runtimeProperty("ModSettings.category.order", "1100")
-  @runtimeProperty("ModSettings.displayName", "Open crafting")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindOpenCrafting: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Menus")
-  @runtimeProperty("ModSettings.category.order", "1100")
-  @runtimeProperty("ModSettings.displayName", "Pause")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindPause: String = "";
 
   // ---- Menu navigation ----------------------------------------------------
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Menu navigation")
-  @runtimeProperty("ModSettings.category.order", "1200")
-  @runtimeProperty("ModSettings.displayName", "Confirm")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindMenuConfirm: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Menu navigation")
-  @runtimeProperty("ModSettings.category.order", "1200")
-  @runtimeProperty("ModSettings.displayName", "Cancel")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindMenuCancel: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Menu navigation")
-  @runtimeProperty("ModSettings.category.order", "1200")
-  @runtimeProperty("ModSettings.displayName", "Up")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindMenuUp: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Menu navigation")
-  @runtimeProperty("ModSettings.category.order", "1200")
-  @runtimeProperty("ModSettings.displayName", "Down")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindMenuDown: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Menu navigation")
-  @runtimeProperty("ModSettings.category.order", "1200")
-  @runtimeProperty("ModSettings.displayName", "Left")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindMenuLeft: String = "";
 
-  @runtimeProperty("ModSettings.mod", "G-series Wheel")
-  @runtimeProperty("ModSettings.category", "Menu navigation")
-  @runtimeProperty("ModSettings.category.order", "1200")
-  @runtimeProperty("ModSettings.displayName", "Right")
-  @runtimeProperty("ModSettings.description", "Bind.\n\n")
-  @runtimeProperty("ModSettings.inputBinding", "true")
-  @runtimeProperty("ModSettings.inputBinding.type", "button")
-  @runtimeProperty("ModSettings.inputBinding.pair", "true")
   let bindMenuRight: String = "";
 
   // ---- Startup ------------------------------------------------------------
@@ -738,7 +429,5 @@ protected cb func OnGameAttached() -> Bool {
     ModSettings.RegisterListenerToModifications(this.m_gwheelSettings);
     this.m_gwheelSettings.Push();
   }
-  ModSettingsInputProviderRegistry.Set(new GWheelInputProvider());
-  ModSettings.GetInstance().inputProviderGameInstance = this.GetGame();
   return result;
 }
