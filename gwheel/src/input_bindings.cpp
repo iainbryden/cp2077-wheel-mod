@@ -543,6 +543,22 @@ namespace gwheel::input_bindings
             }
         }
 
+        // Tap key-ups waiting to be sent. A tap holds its key for kTapHold so
+        // CP2077's per-tick input sampler sees it down for at least one
+        // frame. The UP is queued here and sent by ServicePendingTaps on a
+        // later pump tick, so a tap never blocks the pump thread (and with
+        // it steer / throttle / brake publishing).
+        constexpr auto kTapHold = std::chrono::milliseconds(30);
+
+        struct PendingTap
+        {
+            int32_t                               action;
+            std::chrono::steady_clock::time_point due;
+        };
+
+        std::mutex              g_tapMtx;
+        std::vector<PendingTap> g_pendingTaps;
+
         void Dispatch(int32_t action, bool rising)
         {
             if (action <= 0 || action >= kActionCount) return;
@@ -558,13 +574,25 @@ namespace gwheel::input_bindings
 
             if (e.mode == DispatchMode::Tap)
             {
-                // 30 ms separates DOWN and UP so CP2077's per-tick input
-                // sampler sees the key as held across at least one frame.
+                // DOWN now; the UP goes out kTapHold later via
+                // ServicePendingTaps. A re-press while the previous tap is
+                // still held releases it first so DOWN/UP stay paired.
                 if (!rising) return;
                 LogForeground(e.label);
-                FireOne(e, true);
-                std::this_thread::sleep_for(std::chrono::milliseconds(30));
-                FireOne(e, false);
+                {
+                    std::lock_guard lk(g_tapMtx);
+                    for (auto it = g_pendingTaps.begin(); it != g_pendingTaps.end(); ++it)
+                    {
+                        if (it->action == action)
+                        {
+                            FireOne(e, false);
+                            g_pendingTaps.erase(it);
+                            break;
+                        }
+                    }
+                    FireOne(e, true);
+                    g_pendingTaps.push_back({ action, std::chrono::steady_clock::now() + kTapHold });
+                }
                 log::InfoF("[gwheel:bind] dispatch action=%d %s TAP", action, e.label);
             }
             else
@@ -828,9 +856,8 @@ namespace gwheel::input_bindings
             return;
         }
 
-        // Snapshot the bindings so we don't hold the lock across SendInput
-        // (Dispatch can sleep 30 ms for tap actions). The map is small
-        // enough that copying once per tick is cheap.
+        // Snapshot the bindings so we don't hold the lock across SendInput.
+        // The map is small enough that copying once per tick is cheap.
         std::vector<std::pair<std::string, ActionEntry>> snapshot;
         uint32_t prevButtons;
         DWORD    prevPov;
@@ -861,6 +888,24 @@ namespace gwheel::input_bindings
             std::lock_guard lk(st.mtx);
             st.prevButtons = buttons;
             st.prevPov     = pov;
+        }
+    }
+
+    void ServicePendingTaps(bool releaseAll)
+    {
+        const auto now = std::chrono::steady_clock::now();
+        std::lock_guard lk(g_tapMtx);
+        for (auto it = g_pendingTaps.begin(); it != g_pendingTaps.end();)
+        {
+            if (releaseAll || now >= it->due)
+            {
+                FireOne(kDispatch[static_cast<size_t>(it->action)], false);
+                it = g_pendingTaps.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
         }
     }
 
