@@ -139,7 +139,7 @@ public class GWheelSettings extends IScriptable {
   @runtimeProperty("ModSettings.max", "1080")
   @runtimeProperty("ModSettings.step", "10")
   @runtimeProperty("ModSettings.dependency", "hasFfbHardware")
-  let ffbWheelRangeDeg: Int32 = 0;
+  let ffbWheelRangeDeg: Int32 = 180;
 
   @runtimeProperty("ModSettings.mod", "G-series Wheel")
   @runtimeProperty("ModSettings.category", "Force feedback")
