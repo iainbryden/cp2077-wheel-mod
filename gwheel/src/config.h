@@ -59,7 +59,7 @@ namespace gwheel::config
         // (see ApplyFfbFromPhysics). 0 = read it from G HUB through the SDK.
         // Current G HUB builds don't answer LogiGetOperatingRange, so that
         // falls back to 540 deg; set this to match G HUB's Operating Range.
-        int32_t wheelRangeDeg = 0;
+        int32_t wheelRangeDeg = 180;
 
         // Physics-model self-centering. Wheel is free at rest; spring engages
         // and active torque builds with speed². Shape + cruise speed + spring
