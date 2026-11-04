@@ -2,7 +2,7 @@
 
 Two suites, both run by CTest:
 
-- `gwheel_tests`: C++ tests for the plugin (182 cases).
+- `gwheel_tests`: C++ tests for the plugin (195 cases).
 - `reds_consistency`: Python checks that the redscript settings, the natives
   and the C++ tables agree (15 cases).
 
@@ -53,7 +53,8 @@ reverse, airborne, sliding, bikes, jolts, road surface, resend pacing, pause
 watchdog), the TrueForce signal mix, LED rev strip and visualizer, the audio
 bass filter, the legacy Logitech backend, the Mod Settings capability flags
 and `user.ini` seeding, the vehicle steer / pedal write, the pump frame and
-timer, and the steering-speed crash safeguards.
+timer, the physics pointer checks and offset probe, and the steering-speed
+crash safeguards.
 
 Not covered, because it only exists inside the running game or with the
 hardware attached: the TweakDB scan and rewrite in `steering_speed.cpp`,

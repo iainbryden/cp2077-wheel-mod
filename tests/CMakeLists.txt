@@ -19,7 +19,6 @@ set(GWHEEL_LINKED_SOURCES
   ${GWHEEL_SRC}/sources.cpp
   ${GWHEEL_SRC}/logi_common.cpp
   ${GWHEEL_SRC}/logging.cpp
-  ${GWHEEL_SRC}/rtti_offsets.cpp
   ${GWHEEL_SRC}/tweakdb_physics.cpp
   ${GWHEEL_SRC}/trueforce_loader.cpp
   ${GWHEEL_SRC}/wheel_backend.cpp
@@ -41,6 +40,7 @@ set(GWHEEL_TEST_SOURCES
   test_legacy_backend.cpp     # includes wheel_backend_logi_legacy.cpp
   test_steering_speed.cpp     # includes steering_speed.cpp
   test_rtti.cpp               # includes rtti.cpp
+  test_rtti_offsets.cpp       # includes rtti_offsets.cpp
   test_mod_settings_seed.cpp  # includes mod_settings_seed.cpp
   test_vehicle_hook.cpp       # includes vehicle_hook.cpp
   test_plugin.cpp             # includes plugin.cpp

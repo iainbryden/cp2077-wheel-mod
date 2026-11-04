@@ -25,9 +25,11 @@ namespace gwheel::vehicle_ext
 {
     // Hardcoded-fallback offsets. Outer offsets (physics / physicsData on
     // vehicleBaseObject) and PhysicsData inner offsets come from LTBF's SDK
-    // fork (new-types branch, game 1.52-1.61) and have held steady into
-    // 2.31 — the runtime back-pointer probe in rtti_offsets.cpp validates
-    // them each session. Inner WheeledPhysics offsets drifted for 2.31 and
+    // fork (new-types branch, game 1.52-1.61) and held steady into 2.31;
+    // patch 2.5 moved the two outer offsets by 8 bytes. The runtime
+    // back-pointer probe in rtti_offsets.cpp validates them each session,
+    // and these values are what's used until it has, or if it never
+    // succeeds. Inner WheeledPhysics offsets drifted for 2.31 and
     // were re-discovered via the ProbeInnerWheeledFields scanner —
     // triangulated across car/bike/truck by matching each field to its
     // expected value domain (wheelbase ∈ [1,5]m, numDriveWheels ∈ {2,4},
@@ -35,9 +37,11 @@ namespace gwheel::vehicle_ext
     // probe on next vehicle mount and update these constants.
     namespace fallback
     {
-        // Outer (vehicleBaseObject) — stable across 1.52 → 2.31.
-        inline constexpr std::ptrdiff_t kVehicleBaseObject_physics      = 0x2C8;
-        inline constexpr std::ptrdiff_t kVehicleBaseObject_physicsData  = 0x2D0;
+        // Outer (vehicleBaseObject) for patch 2.5, confirmed by the runtime
+        // probe. 1.52-2.31 had 0x2C8 / 0x2D0; on 2.5, 0x2C8 is no longer a
+        // pointer.
+        inline constexpr std::ptrdiff_t kVehicleBaseObject_physics      = 0x2D0;
+        inline constexpr std::ptrdiff_t kVehicleBaseObject_physicsData  = 0x2D8;
 
         // PhysicsData (base Physics layout) — stable across 1.52 → 2.31.
         inline constexpr std::ptrdiff_t kPhysicsData_velocity           = 0x18;
@@ -74,6 +78,13 @@ namespace gwheel::vehicle_ext
         // observed up to ±20 N in moderate corners, more under hard lean.
         inline constexpr std::ptrdiff_t kBikePhysics_transversalForce = 0xE3C;
     }
+
+    // The bike and car live fields below were triangulated on 2.31 and have
+    // moved on patch 2.5: bank and tilt read impossible values there (14.79,
+    // -3.99, 6.69), and garbage that happens to land inside the domain check
+    // would be used as force. Until they're re-derived, the per-tick reads
+    // stay off and FFB uses its lateral-velocity and lean proxies instead.
+    inline constexpr bool kChassisLiveOffsetsCurrent = false;
 
     // Car-derived field offsets (CarPhysics extends WheeledPhysics).
     // Triangulated 2026-05-02 from event-triggered slot dumps. Lives in
@@ -156,6 +167,23 @@ namespace gwheel::vehicle_ext
         return rttiOffset ? rttiOffset : static_cast<uint32_t>(fallback);
     }
 
+    // Sanity check on a heap-allocated game pointer. Catches:
+    //   - null
+    //   - 32-bit values read as a pointer (a float in a moved field, e.g.
+    //     0x3DCCCDE1 at the old physics offset on 2.5). Game heap allocations
+    //     sit far above 4 GB.
+    //   - misaligned values (heap objects are 8-byte aligned)
+    //   - all-ones sentinel (0xFFFFFFFFFFFFFFFF — written by CDPR's allocator
+    //     into freed-pointer slots during teardown; quit-time crash 2026-05-02)
+    //   - high-half-canonical addresses (Win64 user-space tops out below
+    //     0x00007FFFFFFFFFFF)
+    // Cheap range check, no syscall — safe to call from the per-tick hot path.
+    inline bool LooksLikeUserPtr(const void* p)
+    {
+        const auto v = reinterpret_cast<uintptr_t>(p);
+        return v >= 0x100000000ull && v < 0x00007FFFFFFFFFFFull && (v & 7) == 0;
+    }
+
     // --- pointer-field accessors -------------------------------------------
     // physics and physicsData are both pointers in the vehicle struct. Read
     // them through the resolved offset. Can return nullptr if the vehicle's
@@ -178,11 +206,11 @@ namespace gwheel::vehicle_ext
     // --- PhysicsData scalar reads ------------------------------------------
 
     // Reads Vector3 velocity from physicsData into out[3]. Returns true on
-    // success, false if physicsData is null.
+    // success, false if physicsData isn't a usable pointer.
     inline bool ReadVelocity(void* vehicle, float out[3])
     {
         void* pd = GetPhysicsDataRaw(vehicle);
-        if (!pd) return false;
+        if (!LooksLikeUserPtr(pd)) return false;
         const uint32_t off = ResolvedOr(rtti_offsets::PhysicsData_velocityOffset(),
                                         fallback::kPhysicsData_velocity);
         const float* src = reinterpret_cast<const float*>(static_cast<char*>(pd) + off);
@@ -193,7 +221,7 @@ namespace gwheel::vehicle_ext
     inline bool ReadAngularVelocity(void* vehicle, float out[3])
     {
         void* pd = GetPhysicsDataRaw(vehicle);
-        if (!pd) return false;
+        if (!LooksLikeUserPtr(pd)) return false;
         const uint32_t off = ResolvedOr(rtti_offsets::PhysicsData_angularVelocityOffset(),
                                         fallback::kPhysicsData_angularVelocity);
         const float* src = reinterpret_cast<const float*>(static_cast<char*>(pd) + off);
@@ -236,20 +264,6 @@ namespace gwheel::vehicle_ext
         float currTurnInput     = 0.f;  // [-1, +1], signed; tracks driver
         bool  valid             = false;
     };
-
-    // Sanity check on a heap-allocated game pointer. Catches:
-    //   - null
-    //   - small-int sentinels (anything below 0x10000 is reserved / invalid)
-    //   - all-ones sentinel (0xFFFFFFFFFFFFFFFF — written by CDPR's allocator
-    //     into freed-pointer slots during teardown; quit-time crash 2026-05-02)
-    //   - high-half-canonical addresses (Win64 user-space tops out below
-    //     0x00007FFFFFFFFFFF)
-    // Cheap range check, no syscall — safe to call from the per-tick hot path.
-    inline bool LooksLikeUserPtr(const void* p)
-    {
-        const auto v = reinterpret_cast<uintptr_t>(p);
-        return v >= 0x10000 && v < 0x00007FFFFFFFFFFFull;
-    }
 
     inline BikeLiveFields ReadBikeLiveFields(void* vehicle)
     {
@@ -309,7 +323,7 @@ namespace gwheel::vehicle_ext
     {
         WheeledPhysicsSnapshot s;
         void* wp = GetPhysicsRaw(vehicle);
-        if (!wp) return s;
+        if (!LooksLikeUserPtr(wp)) return s;
         const auto at = [&](uint32_t off) -> const char* {
             return static_cast<const char*>(wp) + off;
         };

@@ -98,7 +98,8 @@ namespace gwheel::rtti_offsets
     // the fallback offsets from LTBF's SDK fork remain in use.
     bool ProbeStructOffsets(void* vehicle);
 
-    // True once ProbeStructOffsets has succeeded at least once.
+    // True once ProbeStructOffsets has finished: both offsets found, or its
+    // retries ran out (the fallback offsets then stay in use).
     bool StructProbeDone();
 
     // --- Inner WheeledPhysics field probe -----------------------------------

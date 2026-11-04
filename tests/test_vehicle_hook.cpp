@@ -184,3 +184,105 @@ TEST_CASE(vehicle_hook_counts_detour_calls)
     DetourUpdateVehicleCameraInput(nullptr);
     CHECK_EQ(FireCount(), before + 2);
 }
+
+// ---- Physics pointers on patch 2.5 --------------------------------------------
+
+namespace
+{
+    // A vehicle laid out for the fallback offsets, with physics structures
+    // that hold known values.
+    struct PhysicsVehicle
+    {
+        FakeVehicle car;
+        std::unique_ptr<uint64_t[]> data{ new uint64_t[0x100 / 8]() };
+        std::unique_ptr<uint64_t[]> chassis{ new uint64_t[0x1000 / 8]() };
+
+        void SetSlot(std::ptrdiff_t offset, uint64_t value)
+        {
+            std::memcpy(static_cast<char*>(car.self()) + offset, &value, sizeof(value));
+        }
+
+        PhysicsVehicle()
+        {
+            SetSlot(vehicle_ext::fallback::kVehicleBaseObject_physics,
+                    reinterpret_cast<uint64_t>(chassis.get()));
+            SetSlot(vehicle_ext::fallback::kVehicleBaseObject_physicsData,
+                    reinterpret_cast<uint64_t>(data.get()));
+            auto* f = reinterpret_cast<float*>(data.get());
+            f[vehicle_ext::fallback::kPhysicsData_velocity / 4]            = 12.f;
+            f[vehicle_ext::fallback::kPhysicsData_angularVelocity / 4 + 2] = 0.5f;
+        }
+    };
+
+    bool PtrOk(uint64_t v)
+    {
+        return vehicle_ext::LooksLikeUserPtr(reinterpret_cast<const void*>(v));
+    }
+
+    constexpr uint64_t kFloatAsPointer = 0x3DCCCDE1ull;  // 0.1f in the old 0x2C8 slot
+}
+
+TEST_CASE(physics_fallback_offsets_are_the_2_5_ones)
+{
+    static_assert(vehicle_ext::fallback::kVehicleBaseObject_physics == 0x2D0);
+    static_assert(vehicle_ext::fallback::kVehicleBaseObject_physicsData == 0x2D8);
+    CHECK(true);
+}
+
+TEST_CASE(physics_pointer_check_rejects_values_that_are_not_heap_pointers)
+{
+    CHECK(!PtrOk(0));
+    CHECK(!PtrOk(0x10000));
+    CHECK(!PtrOk(kFloatAsPointer));
+    CHECK(!PtrOk(0x00000000FFFFFFF8ull));         // still a 32-bit value
+    CHECK(!PtrOk(0x000001BDB4A39B41ull));         // misaligned
+    CHECK(!PtrOk(0xFFFFFFFFFFFFFFFFull));         // freed-pointer sentinel
+    CHECK(!PtrOk(0x00007FFFFFFFFFF8ull + 8));     // past user space
+    CHECK(PtrOk(0x000001BDB4A39B40ull));          // a real one from a 2.5 log
+    CHECK(PtrOk(0x0000000100000000ull));
+}
+
+TEST_CASE(physics_reads_use_the_2_5_fallback_slots)
+{
+    PhysicsVehicle v;
+    float vel[3] = {};
+    float ang[3] = {};
+    REQUIRE(vehicle_ext::ReadVelocity(v.car.self(), vel));
+    REQUIRE(vehicle_ext::ReadAngularVelocity(v.car.self(), ang));
+    CHECK_EQ(vel[0], 12.f);
+    CHECK_EQ(ang[2], 0.5f);
+    CHECK_EQ(vehicle_ext::GetPhysicsRaw(v.car.self()), static_cast<void*>(v.chassis.get()));
+}
+
+TEST_CASE(physics_reads_survive_a_float_in_the_pointer_slot)
+{
+    // The 2.5 crash pattern: a float in a moved field taken for a pointer.
+    // Every one of these would fault if it dereferenced the value.
+    PhysicsVehicle v;
+    v.SetSlot(vehicle_ext::fallback::kVehicleBaseObject_physics, kFloatAsPointer);
+    v.SetSlot(vehicle_ext::fallback::kVehicleBaseObject_physicsData, kFloatAsPointer);
+    float out[3] = {};
+    CHECK(!vehicle_ext::ReadVelocity(v.car.self(), out));
+    CHECK(!vehicle_ext::ReadAngularVelocity(v.car.self(), out));
+    CHECK(!vehicle_ext::ReadCarLiveFields(v.car.self()).valid);
+    CHECK(!vehicle_ext::ReadBikeLiveFields(v.car.self()).valid);
+    CHECK(!vehicle_ext::ReadWheeledPhysics(v.car.self()).valid);
+}
+
+TEST_CASE(physics_null_pointers_are_rejected)
+{
+    PhysicsVehicle v;
+    v.SetSlot(vehicle_ext::fallback::kVehicleBaseObject_physics, 0);
+    v.SetSlot(vehicle_ext::fallback::kVehicleBaseObject_physicsData, 0);
+    float out[3] = {};
+    CHECK(!vehicle_ext::ReadVelocity(v.car.self(), out));
+    CHECK(!vehicle_ext::ReadWheeledPhysics(v.car.self()).valid);
+}
+
+TEST_CASE(physics_chassis_live_reads_stay_off_on_2_5)
+{
+    // Bank and tilt read impossible values on 2.5, so the FFB tick must not
+    // use them until the offsets are re-derived.
+    static_assert(!vehicle_ext::kChassisLiveOffsetsCurrent);
+    CHECK(true);
+}

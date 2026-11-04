@@ -573,6 +573,13 @@ namespace gwheel::vehicle_hook
             const bool steerWheelBound = axis_resolver::IsActionWheelBound("SteerAxis");
             if (cfg.ffb.enabled && steerWheelBound)
             {
+                // Run the offset probe once we have a live player vehicle,
+                // ahead of every physics read below.
+                // Self-discovering: scans for back-pointer correlations to
+                // find where physicsData / physics live in this build.
+                if (!rtti_offsets::StructProbeDone())
+                    rtti_offsets::ProbeStructOffsets(self);
+
                 // Angular velocity magnitude from the vehicle's PhysicsData,
                 // read via the RTTI-resolved offsets. Dominant component is
                 // yaw (Z in REDengine), but we take the full vector
@@ -653,12 +660,6 @@ namespace gwheel::vehicle_hook
                 // cruiseMps / centeringBaseline / yawRef heuristics moved
                 // inside that function, sourced from authored TweakDB values
                 // instead of hand-fit constants.
-
-                // Run the offset probe once we have a live player vehicle.
-                // Self-discovering: scans for back-pointer correlations to
-                // find where physicsData / physics live in this build.
-                if (!rtti_offsets::StructProbeDone())
-                    rtti_offsets::ProbeStructOffsets(self);
 
                 // Inner WheeledPhysics field-probe is defined but no longer
                 // called per-mount — we've triangulated the 2.31 offsets
@@ -786,8 +787,12 @@ namespace gwheel::vehicle_hook
                 // catches any drift; in that case `valid` returns false and
                 // the FFB pipeline falls back to the lateralVelocity-based
                 // proxies. Triangulated 2026-05-02; see fallback_bike /
-                // fallback_car namespaces in vehicle_physics_ext.h.
-                if (pc.kind == tweakdb_physics::ChassisKind::Bike)
+                // fallback_car namespaces in vehicle_physics_ext.h. Off while
+                // kChassisLiveOffsetsCurrent is false (they moved on 2.5).
+                if constexpr (!vehicle_ext::kChassisLiveOffsetsCurrent)
+                {
+                }
+                else if (pc.kind == tweakdb_physics::ChassisKind::Bike)
                 {
                     auto live = vehicle_ext::ReadBikeLiveFields(self);
                     if (live.valid)
@@ -818,7 +823,8 @@ namespace gwheel::vehicle_hook
                 // offsets directly.
                 if (pc.chainResolved)
                 {
-                    if (void* phys = vehicle_ext::GetPhysicsRaw(self))
+                    void* phys = vehicle_ext::GetPhysicsRaw(self);
+                    if (vehicle_ext::LooksLikeUserPtr(phys))
                     {
                         rtti_offsets::InnerProbeState ps{};
                         ps.isOnGround = veh->isOnGround;

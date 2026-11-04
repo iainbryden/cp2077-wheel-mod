@@ -38,6 +38,8 @@ namespace gwheel::rtti_offsets
             std::atomic<uint32_t> probed_physicsDataOffset{0};
             std::atomic<uint32_t> probed_physicsOffset{0};
             std::atomic<bool>     probeDone{false};
+            std::atomic<uint32_t> probeCalls{0};
+            std::atomic<uint32_t> probeAttempts{0};
         };
 
         State& S() { static State s; return s; }
@@ -207,9 +209,21 @@ namespace gwheel::rtti_offsets
         if (st.probeDone.load(std::memory_order_acquire)) return true;
         if (!vehicle) return false;
 
+        // A vehicle's physics chain can still be missing on its first ticks,
+        // so a failed probe is retried. Called every tick until done: scan
+        // on the first call, then every kRetryEveryCalls, and give up after
+        // kMaxAttempts (about 20 seconds of driving) and keep the fallbacks.
+        constexpr uint32_t kRetryEveryCalls = 30;
+        constexpr uint32_t kMaxAttempts     = 40;
+        if (st.probeCalls.fetch_add(1, std::memory_order_relaxed) % kRetryEveryCalls != 0)
+            return false;
+        const uint32_t attempt = st.probeAttempts.fetch_add(1, std::memory_order_relaxed) + 1;
+        const bool lastAttempt = attempt >= kMaxAttempts;
+
         // Candidate outer offsets to probe on vehicleBaseObject. LTBF's
-        // fork had physics@0x2C8 and physicsData@0x2D0 — we scan a generous
-        // window around that, covering +/- patch drift.
+        // fork had physics@0x2C8 and physicsData@0x2D0, and 2.5 has
+        // 0x2D0 / 0x2D8 — we scan a generous window around that, covering
+        // +/- patch drift.
         constexpr std::ptrdiff_t kScanStart = 0x200;
         constexpr std::ptrdiff_t kScanEnd   = 0x400;
         // Inner range: back-pointer on PhysicsData was @0x180 in LTBF fork,
@@ -217,7 +231,8 @@ namespace gwheel::rtti_offsets
         constexpr std::ptrdiff_t kInnerStart = 0x00;
         constexpr std::ptrdiff_t kInnerEnd   = 0x200;
 
-        log::InfoF("[gwheel:rtti-off] probing struct offsets from live vehicle=%p", vehicle);
+        if (attempt == 1)
+            log::InfoF("[gwheel:rtti-off] probing struct offsets from live vehicle=%p", vehicle);
 
         struct Hit { std::ptrdiff_t outerOff; std::ptrdiff_t backOff; void* inner; };
         Hit hits[8] = {};
@@ -244,8 +259,11 @@ namespace gwheel::rtti_offsets
 
         if (hitCount == 0)
         {
-            log::Warn("[gwheel:rtti-off] probe: no correlated pointers found — falling back to hardcoded offsets");
-            st.probeDone.store(true, std::memory_order_release); // don't re-probe every tick
+            if (lastAttempt)
+            {
+                log::Warn("[gwheel:rtti-off] probe: no correlated pointers found — falling back to hardcoded offsets");
+                st.probeDone.store(true, std::memory_order_release);
+            }
             return false;
         }
 
@@ -308,8 +326,14 @@ namespace gwheel::rtti_offsets
         if (auto o = st.probed_physicsOffset.load(std::memory_order_acquire); o != 0)
             st.vehicleBaseObject_physics.store(o, std::memory_order_release);
 
-        st.probeDone.store(true, std::memory_order_release);
-        return (physicsDataIdx >= 0 || physicsIdx >= 0);
+        const bool foundBoth = physicsDataIdx >= 0 && physicsIdx >= 0 && physicsIdx != physicsDataIdx;
+        if (foundBoth || lastAttempt)
+        {
+            if (!foundBoth)
+                log::Warn("[gwheel:rtti-off] probe: only part of the physics chain found — using hardcoded offsets for the rest");
+            st.probeDone.store(true, std::memory_order_release);
+        }
+        return foundBoth;
     }
 
     bool StructProbeDone() { return S().probeDone.load(std::memory_order_acquire); }
