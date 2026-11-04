@@ -1,7 +1,7 @@
 {
   "name": "NightDrive: Logitech G-series Wheel",
   "shortName": "gwheel",
-  "version": "2.5.0-nightdrive.7",
+  "version": "2.5.0-nightdrive.8",
   "author": "Iain Bryden (NightDrive), based on the mod by Grant Perdue",
   "description": "Cyberpunk 2077 support for Logitech G-series steering wheels via a RED4ext plugin. Respects Logitech G HUB by default.",
   "game": "Cyberpunk 2077",

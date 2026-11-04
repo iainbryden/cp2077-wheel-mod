@@ -1,6 +1,6 @@
 # NightDrive: Logitech G-series Steering Wheel for Cyberpunk 2077
 
-**v2.5.0-nightdrive.7** for Cyberpunk 2077 game patch 2.5.
+**v2.5.0-nightdrive.8** for Cyberpunk 2077 game patch 2.5.
 
 > **NightDrive** is a fork of [cp2077-wheel-mod](https://github.com/clevergrant/cp2077-wheel-mod) by Grant Perdue, updated for game patch 2.5 by Iain Bryden. See [Credits](#credits).
 
